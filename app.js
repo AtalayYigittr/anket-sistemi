@@ -328,6 +328,7 @@ function renderAdmin() {
     <div class="tabstrip">
       <button data-t="yukle">Kişi Yükle</button>
       <button data-t="anketorler">Anketörler</button>
+      <button data-t="kisiler">Görüşülenler</button>
       <button data-t="kvkk">KVKK Kayıtları</button>
       <button data-t="analiz">Analiz</button>
     </div>
@@ -346,6 +347,7 @@ function renderAdmin() {
 function renderAdminTab() {
   if (adminTab === 'yukle') return renderAdminYukle();
   if (adminTab === 'anketorler') return renderAdminAnketorler();
+  if (adminTab === 'kisiler') return renderAdminKisiler();
   if (adminTab === 'kvkk') return renderAdminKvkk();
   if (adminTab === 'analiz') return renderAdminAnaliz();
 }
@@ -411,6 +413,7 @@ async function doUploadKisiler() {
     const res = await api('adminUploadKisiler', { rows: parsedExcelRows });
     showToast(`${res.eklenen} kişi eklendi (${res.atanan} anketöre atandı, ${res.atanmayan} bekliyor).`);
     parsedExcelRows = [];
+    kisilerCache = null;
     renderAdminTab();
   } catch (err) {
     showToast('Hata: ' + err.message);
@@ -484,6 +487,65 @@ async function renderAdminAnketorler() {
       showToast('Bölge ataması yapıldı.');
       renderAdminTab();
     } catch (err) { showToast('Hata: ' + err.message); }
+  });
+}
+
+// ---- Görüşülenler (sonuca göre filtre) ----
+let kisilerFilter = 'olumlu';
+let kisilerCache = null;
+
+async function renderAdminKisiler() {
+  const body = document.getElementById('adminBody');
+  body.innerHTML = `
+    <p class="lede">Görüşülen kişileri sonuca göre filtreleyin. Bir satıra dokunarak görüşme notunu görüntüleyin, telefon numarasına dokunarak arayın.</p>
+    <div class="choice-row" id="kisilerFilterRow">
+      <button class="choice-btn sel-olumlu" data-f="olumlu">Olumlu</button>
+      <button class="choice-btn sel-olumsuz" data-f="olumsuz">Olumsuz</button>
+      <button class="choice-btn sel-kararsiz" data-f="kararsiz">Kararsız</button>
+    </div>
+    <div id="kisilerListArea" style="margin-top:14px;"><p class="lede">Yükleniyor…</p></div>
+  `;
+  document.querySelectorAll('#kisilerFilterRow .choice-btn').forEach(b => {
+    if (b.dataset.f === kisilerFilter) b.classList.add('selected');
+    b.addEventListener('click', () => {
+      kisilerFilter = b.dataset.f;
+      document.querySelectorAll('#kisilerFilterRow .choice-btn').forEach(x => x.classList.remove('selected'));
+      b.classList.add('selected');
+      renderKisilerFilteredList();
+    });
+  });
+  try {
+    if (!kisilerCache) {
+      const data = await api('adminGetAllKisiler', {});
+      kisilerCache = data.kisiler;
+    }
+    renderKisilerFilteredList();
+  } catch (err) {
+    document.getElementById('kisilerListArea').innerHTML = emptyState('⚠️', err.message);
+  }
+}
+
+function renderKisilerFilteredList() {
+  const area = document.getElementById('kisilerListArea');
+  const list = (kisilerCache || []).filter(k => k.IlkSonuc === kisilerFilter);
+  if (!list.length) {
+    area.innerHTML = emptyState('📭', 'Bu sonuçta görüşülmüş kimse yok.');
+    return;
+  }
+  area.innerHTML = list.map((k, i) => `
+    <div class="card kisi-row" data-i="${i}">
+      <div class="row1">
+        <div class="ad">${esc(k.AdSoyad)}</div>
+        <a class="tel-link" href="tel:${esc(String(k.Telefon || '').replace(/\s/g, ''))}">${esc(k.Telefon || '—')}</a>
+      </div>
+      <div class="notes-area hidden">${k.IlkNotlar ? esc(k.IlkNotlar) : '<span class="field-help">Not girilmemiş.</span>'}</div>
+    </div>
+  `).join('');
+  area.querySelectorAll('.kisi-row').forEach(el => {
+    el.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tel-link')) return; // aramayı engelleme
+      el.querySelector('.notes-area').classList.toggle('hidden');
+    });
   });
 }
 
