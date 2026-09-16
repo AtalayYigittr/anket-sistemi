@@ -550,6 +550,7 @@ async function renderAdminAnaliz() {
       <div class="stat-box"><div class="n">${pct(data, 'olumlu')}%</div><div class="lbl">Olumlu Oranı</div></div>
       <div class="stat-box"><div class="n">${pct(data, 'olumsuz')}%</div><div class="lbl">Olumsuz Oranı</div></div>
     </div>
+    ${analysisTable('Anketöre Göre Sonuçlar', data.anketorBazli)}
     ${analysisSection('Bölgeye Göre (adres yakınlığı)', data.bolgeBazli)}
     ${analysisSection('İlçeye Göre', data.ilceBazli)}
     ${analysisSection('Yaş Grubuna Göre', data.yasBazli)}
@@ -561,6 +562,27 @@ function pct(data, key) {
   let toplam = data.toplamGorusulen, sum = 0;
   data.bolgeBazli.forEach(b => sum += (b[key] || 0));
   return toplam ? Math.round((sum / toplam) * 100) : 0;
+}
+
+function analysisTable(title, buckets) {
+  if (!buckets.length) return '';
+  const rows = buckets
+    .slice()
+    .sort((a, b) => b.toplam - a.toplam)
+    .map(b => `
+      <tr>
+        <td>${esc(b.ad)}</td>
+        <td><span class="badge olumlu">${b.olumlu || 0}</span></td>
+        <td><span class="badge olumsuz">${b.olumsuz || 0}</span></td>
+        <td><span class="badge kararsiz">${b.kararsiz || 0}</span></td>
+        <td>${b.toplam}</td>
+      </tr>`).join('');
+  return `<div class="card"><h2>${title}</h2>
+    <div class="table-scroll"><table class="data-table">
+      <thead><tr><th>Anketör</th><th>Olumlu</th><th>Olumsuz</th><th>Kararsız</th><th>Toplam</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
 }
 
 function analysisSection(title, buckets) {
