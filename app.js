@@ -525,6 +525,31 @@ async function renderAdminKisiler() {
   }
 }
 
+// Telefon numarasını Türkiye standart görünümüne (0 5xx xxx xxxx) çevirir
+// ve aranabilir (tel:) bir değer üretir. Numara +90/90/0 önekiyle,
+// boşluklu/tireli ya da eksik biçimde girilmiş olsa da normalize eder.
+function formatPhoneTR(raw) {
+  let digits = String(raw || '').replace(/\D/g, '');
+  if (digits.startsWith('0090')) digits = digits.slice(2);
+  if (digits.startsWith('90') && digits.length === 12) digits = digits.slice(2);
+  if (digits.startsWith('0') && digits.length === 11) digits = digits.slice(1);
+
+  if (digits.length === 10 && digits.startsWith('5')) {
+    return {
+      display: '0 ' + digits.slice(0, 3) + ' ' + digits.slice(3, 6) + ' ' + digits.slice(6, 10),
+      tel: '+90' + digits,
+      valid: true
+    };
+  }
+  // Tanınamayan bir biçimse yine de aranabilir bir değer üretmeye çalış,
+  // görünümde ham veriyi bırak.
+  return {
+    display: raw ? String(raw) : '—',
+    tel: digits ? (digits.startsWith('0') ? '+90' + digits.slice(1) : '+' + digits) : '',
+    valid: false
+  };
+}
+
 function renderKisilerFilteredList() {
   const area = document.getElementById('kisilerListArea');
   const list = (kisilerCache || []).filter(k => k.IlkSonuc === kisilerFilter);
@@ -532,12 +557,16 @@ function renderKisilerFilteredList() {
     area.innerHTML = emptyState('📭', 'Bu sonuçta görüşülmüş kimse yok.');
     return;
   }
-  area.innerHTML = list.map(k => `
+  area.innerHTML = list.map(k => {
+    const phone = formatPhoneTR(k.Telefon);
+    return `
     <div class="card kisi-row" data-id="${k.ID}">
       <div class="kisi-row-header">
         <div class="row1">
           <div class="ad">${esc(k.AdSoyad)}</div>
-          <a class="tel-link" href="tel:${esc(String(k.Telefon || '').replace(/\s/g, ''))}">${esc(k.Telefon || '—')}</a>
+          ${phone.tel
+            ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
+            : `<span class="tel-link tel-missing">${esc(phone.display)}</span>`}
         </div>
       </div>
       <div class="notes-area hidden" data-id="${k.ID}">
@@ -557,7 +586,8 @@ function renderKisilerFilteredList() {
         <button class="btn btn-primary admin-save-btn" style="margin-top:10px;">Kaydet</button>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   area.querySelectorAll('.kisi-row-header').forEach(header => {
     header.addEventListener('click', (e) => {

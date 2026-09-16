@@ -151,6 +151,12 @@ p.lede { color: var(--ink-soft); font-size: 14px; margin: 0 0 18px; }
   font-size: 14px;
   text-decoration: none;
   white-space: nowrap;
+  font-family: var(--mono);
+}
+.kisi-row .tel-link.tel-missing {
+  color: var(--ink-soft);
+  font-family: var(--font);
+  font-weight: 500;
 }
 .notes-area {
   margin-top: 10px;
