@@ -9,7 +9,7 @@ const CLIENT_ID = window.APP_CONFIG.GOOGLE_CLIENT_ID;
 
 let session = null;           // {email, role, adSoyad, idToken}
 let anketorTab = 'liste';     // 'liste' | 'ikinci' | 'profil'
-let adminTab = 'yukle';       // 'yukle' | 'anketorler' | 'kvkk' | 'analiz'
+let adminTab = 'yukle';       // 'yukle' | 'anketorler' | 'kisiler' | 'kvkk' | 'analiz'
 let pendingKisiId = null;
 let pendingIsSecond = false;
 let pendingSonuc = null;
@@ -208,14 +208,14 @@ function openInterviewModal(id, list, isSecond) {
   document.getElementById('imKisiMeta').textContent =
     [kisi.adres, kisi.ilce, kisi.telefon].filter(Boolean).join(' · ');
   document.getElementById('imNotlar').value = '';
-  document.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('#interviewModal .choice-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('imSave').disabled = true;
   document.getElementById('interviewModal').classList.remove('hidden');
 }
 
-document.querySelectorAll('.choice-btn').forEach(btn => {
+document.querySelectorAll('#interviewModal .choice-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+    document.querySelectorAll('#interviewModal .choice-btn').forEach(b => b.classList.remove('selected'));
     btn.classList.add('selected');
     pendingSonuc = btn.dataset.val;
     document.getElementById('imSave').disabled = false;
@@ -497,7 +497,7 @@ let kisilerCache = null;
 async function renderAdminKisiler() {
   const body = document.getElementById('adminBody');
   body.innerHTML = `
-    <p class="lede">Görüşülen kişileri sonuca göre filtreleyin. Bir satıra dokunarak görüşme notunu görüntüleyin, telefon numarasına dokunarak arayın.</p>
+    <p class="lede">Görüşülen kişileri sonuca göre filtreleyin. Bir satıra dokunarak görüşme notunu, sonucu değiştirme seçeneğini ve yönetici notunu görüntüleyin; telefon numarasına dokunarak arayın.</p>
     <div class="choice-row" id="kisilerFilterRow">
       <button class="choice-btn sel-olumlu" data-f="olumlu">Olumlu</button>
       <button class="choice-btn sel-olumsuz" data-f="olumsuz">Olumsuz</button>
@@ -532,19 +532,77 @@ function renderKisilerFilteredList() {
     area.innerHTML = emptyState('📭', 'Bu sonuçta görüşülmüş kimse yok.');
     return;
   }
-  area.innerHTML = list.map((k, i) => `
-    <div class="card kisi-row" data-i="${i}">
-      <div class="row1">
-        <div class="ad">${esc(k.AdSoyad)}</div>
-        <a class="tel-link" href="tel:${esc(String(k.Telefon || '').replace(/\s/g, ''))}">${esc(k.Telefon || '—')}</a>
+  area.innerHTML = list.map(k => `
+    <div class="card kisi-row" data-id="${k.ID}">
+      <div class="kisi-row-header">
+        <div class="row1">
+          <div class="ad">${esc(k.AdSoyad)}</div>
+          <a class="tel-link" href="tel:${esc(String(k.Telefon || '').replace(/\s/g, ''))}">${esc(k.Telefon || '—')}</a>
+        </div>
       </div>
-      <div class="notes-area hidden">${k.IlkNotlar ? esc(k.IlkNotlar) : '<span class="field-help">Not girilmemiş.</span>'}</div>
+      <div class="notes-area hidden" data-id="${k.ID}">
+        <div class="field-help" style="margin-bottom:6px;">Anketör notu</div>
+        <div style="margin-bottom:14px;">${k.IlkNotlar ? esc(k.IlkNotlar) : '<span class="field-help">Not girilmemiş.</span>'}</div>
+
+        <label style="margin-top:0;">Görüşme Sonucunu Değiştir</label>
+        <div class="choice-row admin-sonuc-row">
+          <button class="choice-btn sel-olumlu${k.IlkSonuc === 'olumlu' ? ' selected' : ''}" data-val="olumlu">Olumlu</button>
+          <button class="choice-btn sel-olumsuz${k.IlkSonuc === 'olumsuz' ? ' selected' : ''}" data-val="olumsuz">Olumsuz</button>
+          <button class="choice-btn sel-kararsiz${k.IlkSonuc === 'kararsiz' ? ' selected' : ''}" data-val="kararsiz">Kararsız</button>
+        </div>
+
+        <label for="yn-${k.ID}">Yönetici Notu</label>
+        <textarea id="yn-${k.ID}" placeholder="Bu kişiyle ilgili yönetici notu ekleyin">${esc(k.YoneticiNotu || '')}</textarea>
+
+        <button class="btn btn-primary admin-save-btn" style="margin-top:10px;">Kaydet</button>
+      </div>
     </div>
   `).join('');
-  area.querySelectorAll('.kisi-row').forEach(el => {
-    el.addEventListener('click', (e) => {
+
+  area.querySelectorAll('.kisi-row-header').forEach(header => {
+    header.addEventListener('click', (e) => {
       if (e.target.classList.contains('tel-link')) return; // aramayı engelleme
-      el.querySelector('.notes-area').classList.toggle('hidden');
+      header.closest('.kisi-row').querySelector('.notes-area').classList.toggle('hidden');
+    });
+  });
+
+  area.querySelectorAll('.kisi-row').forEach(card => {
+    const id = card.dataset.id;
+    const sonucRow = card.querySelector('.admin-sonuc-row');
+    let secilenSonuc = (kisilerCache.find(k => String(k.ID) === id) || {}).IlkSonuc;
+
+    sonucRow.querySelectorAll('.choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sonucRow.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        secilenSonuc = btn.dataset.val;
+      });
+    });
+
+    card.querySelector('.admin-save-btn').addEventListener('click', async (btnEvt) => {
+      const saveBtn = btnEvt.currentTarget;
+      const textarea = card.querySelector('textarea');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Kaydediliyor…';
+      try {
+        await api('adminUpdateKisi', {
+          kisiId: id,
+          yeniSonuc: secilenSonuc,
+          yoneticiNotu: textarea.value
+        });
+        const cacheItem = kisilerCache.find(k => String(k.ID) === id);
+        if (cacheItem) {
+          cacheItem.IlkSonuc = secilenSonuc;
+          cacheItem.YoneticiNotu = textarea.value;
+        }
+        showToast('Kaydedildi.');
+        renderKisilerFilteredList();
+      } catch (err) {
+        showToast('Hata: ' + err.message);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Kaydet';
+      }
     });
   });
 }
