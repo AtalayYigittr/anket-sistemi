@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Saha Anket Sistemi</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- ================= GİRİŞ EKRANI ================= -->
+<div id="loginScreen" class="login-screen">
+  <div class="mark">SA</div>
+  <h1>Saha Anket Sistemi</h1>
+  <p>Devam etmek için kurumsal Gmail hesabınızla giriş yapın. Hesabınız sistem yöneticisi tarafından tanımlanmış olmalıdır.</p>
+  <div id="googleSignInBtn"></div>
+  <div id="loginError" class="login-error hidden"></div>
+</div>
+
+<!-- ================= UYGULAMA ================= -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="brand">Saha Anket</div>
+    <div style="display:flex; align-items:center;">
+      <div class="who">
+        <div id="whoName">—</div>
+        <span id="whoRole" class="role-chip">—</span>
+      </div>
+      <button class="logout" id="logoutBtn">Çıkış</button>
+    </div>
+  </div>
+
+  <main id="mainContent"></main>
+
+  <!-- Anketör alt gezinme -->
+  <nav id="bottomNav" class="bottom-nav hidden">
+    <button data-tab="liste" class="nav-btn active"><span class="ic">📋</span>İlk Görüşme</button>
+    <button data-tab="ikinci" class="nav-btn"><span class="ic">🔁</span>İkinci Görüşme</button>
+    <button data-tab="profil" class="nav-btn"><span class="ic">👤</span>Profil</button>
+  </nav>
+</div>
+
+<!-- ================= GÖRÜŞME MODALI ================= -->
+<div id="interviewModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-title" id="imKisiAd">Kişi Adı</div>
+    <p class="lede" id="imKisiMeta" style="margin-bottom:10px;">Adres</p>
+
+    <label>Görüşme Sonucu</label>
+    <div class="choice-row">
+      <button class="choice-btn sel-olumlu" data-val="olumlu">Olumlu</button>
+      <button class="choice-btn sel-olumsuz" data-val="olumsuz">Olumsuz</button>
+      <button class="choice-btn sel-kararsiz" data-val="kararsiz">Kararsız</button>
+    </div>
+
+    <label for="imNotlar">Notlar</label>
+    <textarea id="imNotlar" placeholder="Görüşme ile ilgili not ekleyin (opsiyonel)"></textarea>
+
+    <div style="display:flex; gap:10px; margin-top:18px;">
+      <button class="btn btn-outline" id="imCancel" style="flex:1;">Vazgeç</button>
+      <button class="btn btn-primary" id="imSave" style="flex:2;" disabled>Görüşmeyi Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= KVKK MODALI ================= -->
+<div id="kvkkModal" class="modal-backdrop hidden">
+  <div class="modal-sheet center">
+    <div class="modal-title">KVKK Aydınlatma Metni</div>
+    <p class="lede" style="margin-bottom:0;">Bu bölgedeki görüşme listesini görüntülemeden önce aşağıdaki metni okuyup onaylamanız gerekiyor: <b id="kvkkBolgeAd"></b></p>
+    <div class="kvkk-text">
+      6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") uyarınca, saha anketi
+      kapsamında toplanacak ad-soyad, iletişim bilgisi, adres, yaş ve cinsiyet gibi
+      kişisel veriler; yalnızca anket faaliyetinin yürütülmesi, sonuçların
+      değerlendirilmesi ve gerektiğinde ikinci görüşmenin planlanması amacıyla
+      işlenecektir. Anketör olarak, size atanan kişisel verileri bu amaç dışında
+      kullanmamayı, üçüncü kişilerle paylaşmamayı, verileri yalnızca görüşme
+      süresince görüntülemeyi ve görüşme sonrası cihazınızda saklamamayı kabul
+      edersiniz. Veri sorumlusuna ait iletişim bilgileri ve ilgili kişilerin
+      KVKK'dan doğan hakları hakkında bilgi almak için sistem yöneticinize
+      başvurabilirsiniz. Bu metni onaylamanız, verilerin bu çerçevede
+      işlendiğini okuyup anladığınız anlamına gelir.
+    </div>
+    <label class="checkline">
+      <input type="checkbox" id="kvkkCheck">
+      <span>Okudum, anladım ve kabul ediyorum.</span>
+    </label>
+
+    <label for="kvkkAdSoyad">Ad Soyad (imza sahibi)</label>
+    <input type="text" id="kvkkAdSoyad" placeholder="Ad Soyad">
+
+    <label>İmza</label>
+    <canvas id="sigCanvas"></canvas>
+    <div class="sig-actions">
+      <button id="sigClear">İmzayı Temizle</button>
+      <span style="font-size:12px; color:var(--ink-soft);">Parmağınızla / fare ile imzalayın</span>
+    </div>
+
+    <button class="btn btn-primary btn-block" id="kvkkConfirm" style="margin-top:18px;" disabled>Onayla ve Listeyi Görüntüle</button>
+  </div>
+</div>
+
+<!-- ================= İMZA GÖRÜNTÜLEME MODALI (yönetici) ================= -->
+<div id="sigViewModal" class="modal-backdrop hidden">
+  <div class="modal-sheet center">
+    <div class="modal-title">İmza</div>
+    <img id="sigViewImg" style="width:100%; border:1px solid var(--border); border-radius:10px; margin:10px 0;">
+    <button class="btn btn-outline btn-block" id="sigViewClose">Kapat</button>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
