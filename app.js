@@ -16,6 +16,7 @@ let pendingKvkkBolge = null;
 let parsedExcelRows = [];
 let ilkListeCache = [];
 let anketorBolgeler = [];
+let kararsizListeCache = [];
 
 // ---------------------------------------------------------------
 // API
@@ -150,6 +151,37 @@ async function renderAnketor() {
     return;
   }
 
+  if (anketorTab === 'kararsiz') {
+    main.innerHTML = `<h1>Kararsızlar</h1>
+      <p class="lede">İlk görüşmede kararsız kalan, size atanmış kişiler.</p>
+      <input type="text" id="kararsizAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="margin-bottom:14px;">
+      <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
+    try {
+      const data = await api('getKararsizList', {});
+      if (data.kvkkRequired) {
+        openKvkkModal(data.kvkkRequired);
+        document.getElementById('listArea').innerHTML = emptyState('🔒', 'Bu listeyi görmeden önce KVKK onayı vermeniz gerekiyor.');
+        return;
+      }
+      kararsizListeCache = data.list;
+      renderKararsizList(kararsizListeCache);
+      const aramaInput = document.getElementById('kararsizAramaInput');
+      aramaInput.addEventListener('input', () => {
+        const q = aramaInput.value.trim();
+        if (q.length >= 3) {
+          const qNorm = normalizeTR(q);
+          const filtered = kararsizListeCache.filter(k => normalizeTR(k.adSoyad).includes(qNorm));
+          renderKararsizList(filtered, 'Aramanızla eşleşen kişi bulunamadı.');
+        } else {
+          renderKararsizList(kararsizListeCache);
+        }
+      });
+    } catch (err) {
+      document.getElementById('listArea').innerHTML = emptyState('⚠️', err.message);
+    }
+    return;
+  }
+
   const isSecond = anketorTab === 'ikinci';
   main.innerHTML = isSecond
     ? `<h1>Sandığa Gidildi Oy Kullandı</h1>
@@ -228,6 +260,33 @@ function renderKisiList(list, emptyMsg) {
   area.querySelectorAll('.kisi-card').forEach(el => {
     el.addEventListener('click', () => openInterviewModal(el.dataset.id, list));
   });
+}
+
+function renderKararsizList(list, emptyMsg) {
+  const area = document.getElementById('listArea');
+  if (!list.length) {
+    area.innerHTML = emptyState('✅', emptyMsg || 'Kararsız kişi yok.');
+    return;
+  }
+  area.innerHTML = list.map(k => {
+    const phone = formatPhoneTR(k.telefon);
+    return `
+    <div class="card kisi-card" style="cursor:default;">
+      <div class="row1">
+        <div class="ad">${esc(k.adSoyad)}</div>
+        <div class="bolge">${esc(k.bolge)}</div>
+      </div>
+      <div class="adres">${esc(k.adres || '')}${k.ilce ? ', ' + esc(k.ilce) : ''}</div>
+      <div class="meta">
+        ${phone.tel
+          ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
+          : `<span class="tel-link tel-missing">${esc(phone.display)}</span>`}
+        ${k.yas ? `<span>${esc(String(k.yas))} yaş</span>` : ''}
+        ${k.cinsiyet ? `<span>${esc(k.cinsiyet)}</span>` : ''}
+      </div>
+      ${k.ilkNotlar ? `<div class="field-help" style="margin-top:8px;">${esc(k.ilkNotlar)}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function renderSandikList(list, aktif) {
