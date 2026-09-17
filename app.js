@@ -14,6 +14,7 @@ let pendingKisiId = null;
 let pendingSonuc = null;
 let pendingKvkkBolge = null;
 let parsedExcelRows = [];
+let ilkListeCache = [];
 
 // ---------------------------------------------------------------
 // API
@@ -155,6 +156,7 @@ async function renderAnketor() {
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`
     : `<h1>İlk Görüşme Listem</h1>
        <p class="lede">Size atanan, henüz görüşülmemiş kişiler.</p>
+       <input type="text" id="ilkAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="margin-bottom:14px;">
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
 
   try {
@@ -167,21 +169,37 @@ async function renderAnketor() {
     if (isSecond) {
       renderSandikList(data.list, data.sandikAktif);
     } else {
-      renderKisiList(data.list);
+      ilkListeCache = data.list;
+      renderKisiList(ilkListeCache);
+      const aramaInput = document.getElementById('ilkAramaInput');
+      aramaInput.addEventListener('input', () => {
+        const q = aramaInput.value.trim();
+        if (q.length >= 3) {
+          const qNorm = normalizeTR(q);
+          const filtered = ilkListeCache.filter(k => normalizeTR(k.adSoyad).includes(qNorm));
+          renderKisiList(filtered, 'Aramanızla eşleşen kişi bulunamadı.');
+        } else {
+          renderKisiList(ilkListeCache);
+        }
+      });
     }
   } catch (err) {
     document.getElementById('listArea').innerHTML = emptyState('⚠️', err.message);
   }
 }
 
+function normalizeTR(s) {
+  return String(s || '').toLocaleLowerCase('tr-TR');
+}
+
 function emptyState(icon, text) {
   return `<div class="empty-state"><div class="big">${icon}</div>${esc(text)}</div>`;
 }
 
-function renderKisiList(list) {
+function renderKisiList(list, emptyMsg) {
   const area = document.getElementById('listArea');
   if (!list.length) {
-    area.innerHTML = emptyState('✅', 'Şu anda görüşülecek yeni kişi yok.');
+    area.innerHTML = emptyState('✅', emptyMsg || 'Şu anda görüşülecek yeni kişi yok.');
     return;
   }
   area.innerHTML = list.map(k => `
@@ -248,8 +266,20 @@ function openInterviewModal(id, list) {
   pendingKisiId = id;
   pendingSonuc = null;
   document.getElementById('imKisiAd').textContent = kisi.adSoyad;
-  document.getElementById('imKisiMeta').textContent =
-    [kisi.adres, kisi.ilce, kisi.telefon].filter(Boolean).join(' · ');
+
+  const adresWrap = document.getElementById('imAdresWrap');
+  const adresInput = document.getElementById('imAdresInput');
+  adresInput.value = '';
+  if (kisi.adres) {
+    document.getElementById('imKisiMeta').textContent =
+      [kisi.adres, kisi.ilce, kisi.telefon].filter(Boolean).join(' · ');
+    adresWrap.classList.add('hidden');
+  } else {
+    document.getElementById('imKisiMeta').textContent =
+      [kisi.ilce, kisi.telefon].filter(Boolean).join(' · ');
+    adresWrap.classList.remove('hidden');
+  }
+
   document.getElementById('imNotlar').value = '';
   document.querySelectorAll('#interviewModal .choice-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('imSave').disabled = true;
@@ -275,7 +305,8 @@ document.getElementById('imSave').addEventListener('click', async () => {
     await api('submitInterview', {
       kisiId: pendingKisiId,
       sonuc: pendingSonuc,
-      notlar: document.getElementById('imNotlar').value
+      notlar: document.getElementById('imNotlar').value,
+      adres: document.getElementById('imAdresInput').value.trim()
     });
     document.getElementById('interviewModal').classList.add('hidden');
     showToast('Görüşme kaydedildi.');
