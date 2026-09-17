@@ -70,6 +70,43 @@
   </div>
 </div>
 
+<!-- ================= YENİ KİŞİ EKLE MODALI (anketör) ================= -->
+<div id="yeniKisiModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-title">Yeni Kişi Ekle</div>
+    <p class="lede" style="margin-bottom:0;">Eklediğiniz kişi doğrudan listenize düşer, hemen ardından görüşme yapabilirsiniz.</p>
+
+    <label for="ykAdSoyad">Ad Soyad</label>
+    <input type="text" id="ykAdSoyad" placeholder="Ad Soyad">
+
+    <label for="ykTelefon">Telefon</label>
+    <input type="text" id="ykTelefon" placeholder="05xx xxx xx xx">
+
+    <label for="ykAdres">Adres</label>
+    <input type="text" id="ykAdres" placeholder="Adres">
+
+    <label for="ykYas">Yaş</label>
+    <input type="number" id="ykYas" placeholder="Yaş" min="0" max="120">
+
+    <label for="ykCinsiyet">Cinsiyet</label>
+    <select id="ykCinsiyet">
+      <option value="">Seçiniz</option>
+      <option value="Erkek">Erkek</option>
+      <option value="Kadın">Kadın</option>
+      <option value="Diğer">Diğer</option>
+    </select>
+
+    <label for="ykBolge">Bölge</label>
+    <select id="ykBolge"></select>
+    <p class="field-help">Bölge, size atanmış bölgelerle sınırlıdır.</p>
+
+    <div style="display:flex; gap:10px; margin-top:18px;">
+      <button class="btn btn-outline" id="ykCancel" style="flex:1;">Vazgeç</button>
+      <button class="btn btn-primary" id="ykSave" style="flex:2;">Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <!-- ================= SANDIĞA GİDİLDİ OY KULLANDI MODALI ================= -->
 <div id="sandikModal" class="modal-backdrop hidden">
   <div class="modal-sheet">

@@ -15,6 +15,7 @@ let pendingSonuc = null;
 let pendingKvkkBolge = null;
 let parsedExcelRows = [];
 let ilkListeCache = [];
+let anketorBolgeler = [];
 
 // ---------------------------------------------------------------
 // API
@@ -156,8 +157,15 @@ async function renderAnketor() {
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`
     : `<h1>İlk Görüşme Listem</h1>
        <p class="lede">Size atanan, henüz görüşülmemiş kişiler.</p>
-       <input type="text" id="ilkAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="margin-bottom:14px;">
+       <div style="display:flex; gap:8px; margin-bottom:14px;">
+         <input type="text" id="ilkAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="flex:1;">
+         <button class="btn btn-outline" id="yeniKisiBtn" style="white-space:nowrap;">+ Kişi Ekle</button>
+       </div>
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
+
+  if (!isSecond) {
+    document.getElementById('yeniKisiBtn').addEventListener('click', openYeniKisiModal);
+  }
 
   try {
     const data = await api(isSecond ? 'getSecondList' : 'getMyList', {});
@@ -170,6 +178,7 @@ async function renderAnketor() {
       renderSandikList(data.list, data.sandikAktif);
     } else {
       ilkListeCache = data.list;
+      anketorBolgeler = data.bolgeler || [];
       renderKisiList(ilkListeCache);
       const aramaInput = document.getElementById('ilkAramaInput');
       aramaInput.addEventListener('input', () => {
@@ -360,6 +369,46 @@ document.getElementById('smSave').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Kaydet';
+  }
+});
+
+// ---- Yeni kişi ekle (anketör) ----
+function openYeniKisiModal() {
+  document.getElementById('ykAdSoyad').value = '';
+  document.getElementById('ykTelefon').value = '';
+  document.getElementById('ykAdres').value = '';
+  document.getElementById('ykYas').value = '';
+  document.getElementById('ykCinsiyet').value = '';
+  const bolgeSelect = document.getElementById('ykBolge');
+  bolgeSelect.innerHTML = anketorBolgeler.map(b => `<option value="${esc(b)}">${esc(b)}</option>`).join('');
+  document.getElementById('yeniKisiModal').classList.remove('hidden');
+}
+document.getElementById('ykCancel').addEventListener('click', () => {
+  document.getElementById('yeniKisiModal').classList.add('hidden');
+});
+document.getElementById('ykSave').addEventListener('click', async () => {
+  const adSoyad = document.getElementById('ykAdSoyad').value.trim();
+  const bolge = document.getElementById('ykBolge').value;
+  if (!adSoyad) { showToast('Ad soyad gerekli.'); return; }
+  if (!bolge) { showToast('Bölge bulunamadı — size atanmış bir bölge yok.'); return; }
+  const btn = document.getElementById('ykSave');
+  btn.disabled = true; btn.textContent = 'Kaydediliyor…';
+  try {
+    await api('anketorAddKisi', {
+      adSoyad,
+      telefon: document.getElementById('ykTelefon').value.trim(),
+      adres: document.getElementById('ykAdres').value.trim(),
+      yas: document.getElementById('ykYas').value.trim(),
+      cinsiyet: document.getElementById('ykCinsiyet').value,
+      bolge
+    });
+    document.getElementById('yeniKisiModal').classList.add('hidden');
+    showToast('Kişi eklendi.');
+    renderAnketor();
+  } catch (err) {
+    showToast('Hata: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Kaydet';
   }
 });
 
