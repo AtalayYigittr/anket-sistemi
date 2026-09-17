@@ -11,7 +11,6 @@ let session = null;           // {email, role, adSoyad, idToken}
 let anketorTab = 'liste';     // 'liste' | 'ikinci' | 'profil'
 let adminTab = 'yukle';       // 'yukle' | 'anketorler' | 'kisiler' | 'kvkk' | 'analiz'
 let pendingKisiId = null;
-let pendingIsSecond = false;
 let pendingSonuc = null;
 let pendingKvkkBolge = null;
 let parsedExcelRows = [];
@@ -150,9 +149,13 @@ async function renderAnketor() {
   }
 
   const isSecond = anketorTab === 'ikinci';
-  main.innerHTML = `<h1>${isSecond ? 'İkinci Görüşme Listem' : 'İlk Görüşme Listem'}</h1>
-    <p class="lede">${isSecond ? 'Olumlu ilk görüşme sonrası, tarihi gelmiş ikinci görüşmeler.' : 'Size atanan, henüz görüşülmemiş kişiler.'}</p>
-    <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
+  main.innerHTML = isSecond
+    ? `<h1>Sandığa Gidildi Oy Kullandı</h1>
+       <p class="lede">İlk görüşmede olumlu bulunan (veya yönetici tarafından olumluya çevrilen) kişiler. 26 Eylül'den itibaren sandığa gidip gitmediklerini işaretleyebilirsiniz.</p>
+       <div id="listArea"><p class="lede">Yükleniyor…</p></div>`
+    : `<h1>İlk Görüşme Listem</h1>
+       <p class="lede">Size atanan, henüz görüşülmemiş kişiler.</p>
+       <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
 
   try {
     const data = await api(isSecond ? 'getSecondList' : 'getMyList', {});
@@ -161,7 +164,11 @@ async function renderAnketor() {
       document.getElementById('listArea').innerHTML = emptyState('🔒', 'Bu listeyi görmeden önce KVKK onayı vermeniz gerekiyor.');
       return;
     }
-    renderKisiList(data.list, isSecond);
+    if (isSecond) {
+      renderSandikList(data.list, data.sandikAktif);
+    } else {
+      renderKisiList(data.list);
+    }
   } catch (err) {
     document.getElementById('listArea').innerHTML = emptyState('⚠️', err.message);
   }
@@ -171,12 +178,10 @@ function emptyState(icon, text) {
   return `<div class="empty-state"><div class="big">${icon}</div>${esc(text)}</div>`;
 }
 
-function renderKisiList(list, isSecond) {
+function renderKisiList(list) {
   const area = document.getElementById('listArea');
   if (!list.length) {
-    area.innerHTML = emptyState('✅', isSecond
-      ? 'Şu anda tarihi gelmiş ikinci görüşmeniz yok.'
-      : 'Şu anda görüşülecek yeni kişi yok.');
+    area.innerHTML = emptyState('✅', 'Şu anda görüşülecek yeni kişi yok.');
     return;
   }
   area.innerHTML = list.map(k => `
@@ -191,18 +196,56 @@ function renderKisiList(list, isSecond) {
         ${k.yas ? `<span>${esc(String(k.yas))} yaş</span>` : ''}
         ${k.cinsiyet ? `<span>${esc(k.cinsiyet)}</span>` : ''}
       </div>
-      ${isSecond && k.ilkSonuc ? `<div style="margin-top:8px;"><span class="badge olumlu">İlk görüşme: Olumlu</span></div>` : ''}
     </div>
   `).join('');
   area.querySelectorAll('.kisi-card').forEach(el => {
-    el.addEventListener('click', () => openInterviewModal(el.dataset.id, list, isSecond));
+    el.addEventListener('click', () => openInterviewModal(el.dataset.id, list));
   });
 }
 
-function openInterviewModal(id, list, isSecond) {
+function renderSandikList(list, aktif) {
+  const area = document.getElementById('listArea');
+  if (!list.length) {
+    area.innerHTML = emptyState('✅', 'Şu anda listede kimse yok.');
+    return;
+  }
+  const banner = !aktif
+    ? `<div class="card" style="background:var(--kararsiz-bg); border-color:var(--kararsiz);">
+         <b style="color:var(--kararsiz);">Bu bölüm henüz aktif değil</b>
+         <div class="field-help" style="margin-top:4px;">26 Eylül'den itibaren "Evet / Hayır" işaretleyebileceksiniz. Şimdilik sadece listeyi görüntüleyebilir, kişileri arayabilirsiniz.</div>
+       </div>`
+    : '';
+  area.innerHTML = banner + list.map(k => {
+    const phone = formatPhoneTR(k.telefon);
+    return `
+    <div class="card kisi-card" data-id="${k.id}" ${aktif ? '' : 'style="cursor:default;"'}>
+      <div class="row1">
+        <div class="ad">${esc(k.adSoyad)}</div>
+        <div class="bolge">${esc(k.bolge)}</div>
+      </div>
+      <div class="adres">${esc(k.adres || '')}${k.ilce ? ', ' + esc(k.ilce) : ''}</div>
+      <div class="meta">
+        ${phone.tel
+          ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
+          : `<span class="tel-link tel-missing">${esc(phone.display)}</span>`}
+        ${k.ikinciSonuc === 'hayir' ? '<span class="badge olumsuz">Önceki işaret: Hayır</span>' : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  if (aktif) {
+    area.querySelectorAll('.kisi-card').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.classList.contains('tel-link')) return; // aramayı engelleme
+        openSandikModal(el.dataset.id, list);
+      });
+    });
+  }
+}
+
+function openInterviewModal(id, list) {
   const kisi = list.find(k => String(k.id) === String(id));
   pendingKisiId = id;
-  pendingIsSecond = isSecond;
   pendingSonuc = null;
   document.getElementById('imKisiAd').textContent = kisi.adSoyad;
   document.getElementById('imKisiMeta').textContent =
@@ -229,7 +272,7 @@ document.getElementById('imSave').addEventListener('click', async () => {
   btn.disabled = true;
   btn.textContent = 'Kaydediliyor…';
   try {
-    await api(pendingIsSecond ? 'submitSecondInterview' : 'submitInterview', {
+    await api('submitInterview', {
       kisiId: pendingKisiId,
       sonuc: pendingSonuc,
       notlar: document.getElementById('imNotlar').value
@@ -242,6 +285,50 @@ document.getElementById('imSave').addEventListener('click', async () => {
   } finally {
     btn.disabled = false;
     btn.textContent = 'Görüşmeyi Kaydet';
+  }
+});
+
+// ---- Sandığa Gidildi Oy Kullandı modalı ----
+let pendingSandikId = null;
+let pendingSandikSonuc = null;
+
+function openSandikModal(id, list) {
+  const kisi = list.find(k => String(k.id) === String(id));
+  pendingSandikId = id;
+  pendingSandikSonuc = null;
+  document.getElementById('smKisiAd').textContent = kisi.adSoyad;
+  document.getElementById('smKisiMeta').textContent =
+    [kisi.adres, kisi.ilce, kisi.telefon].filter(Boolean).join(' · ');
+  document.querySelectorAll('#sandikModal .choice-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('smSave').disabled = true;
+  document.getElementById('sandikModal').classList.remove('hidden');
+}
+
+document.querySelectorAll('#sandikModal .choice-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#sandikModal .choice-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    pendingSandikSonuc = btn.dataset.val;
+    document.getElementById('smSave').disabled = false;
+  });
+});
+document.getElementById('smCancel').addEventListener('click', () => {
+  document.getElementById('sandikModal').classList.add('hidden');
+});
+document.getElementById('smSave').addEventListener('click', async () => {
+  const btn = document.getElementById('smSave');
+  btn.disabled = true;
+  btn.textContent = 'Kaydediliyor…';
+  try {
+    await api('submitSecondInterview', { kisiId: pendingSandikId, sonuc: pendingSandikSonuc });
+    document.getElementById('sandikModal').classList.add('hidden');
+    showToast('Kaydedildi.');
+    renderAnketor();
+  } catch (err) {
+    showToast('Hata: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Kaydet';
   }
 });
 

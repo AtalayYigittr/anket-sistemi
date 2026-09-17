@@ -37,7 +37,7 @@
   <!-- Anketör alt gezinme -->
   <nav id="bottomNav" class="bottom-nav hidden">
     <button data-tab="liste" class="nav-btn active"><span class="ic">📋</span>İlk Görüşme</button>
-    <button data-tab="ikinci" class="nav-btn"><span class="ic">🔁</span>İkinci Görüşme</button>
+    <button data-tab="ikinci" class="nav-btn"><span class="ic">🗳️</span>Sandığa Gidildi</button>
     <button data-tab="profil" class="nav-btn"><span class="ic">👤</span>Profil</button>
   </nav>
 </div>
@@ -61,6 +61,25 @@
     <div style="display:flex; gap:10px; margin-top:18px;">
       <button class="btn btn-outline" id="imCancel" style="flex:1;">Vazgeç</button>
       <button class="btn btn-primary" id="imSave" style="flex:2;" disabled>Görüşmeyi Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SANDIĞA GİDİLDİ OY KULLANDI MODALI ================= -->
+<div id="sandikModal" class="modal-backdrop hidden">
+  <div class="modal-sheet">
+    <div class="modal-title" id="smKisiAd">Kişi Adı</div>
+    <p class="lede" id="smKisiMeta" style="margin-bottom:10px;">Adres</p>
+
+    <label>Sandığa gitti mi, oy kullandı mı?</label>
+    <div class="choice-row">
+      <button class="choice-btn sel-olumlu" data-val="evet">Evet</button>
+      <button class="choice-btn sel-olumsuz" data-val="hayir">Hayır</button>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-top:18px;">
+      <button class="btn btn-outline" id="smCancel" style="flex:1;">Vazgeç</button>
+      <button class="btn btn-primary" id="smSave" style="flex:2;" disabled>Kaydet</button>
     </div>
   </div>
 </div>
