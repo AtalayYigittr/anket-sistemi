@@ -15,6 +15,8 @@
   --olumsuz-bg: #f7e9e6;
   --kararsiz: #b8862e;
   --kararsiz-bg: #f6efe0;
+  --oykullanamaz: #5b6b78;
+  --oykullanamaz-bg: #e8ecee;
   --radius: 14px;
   --radius-sm: 9px;
   --shadow: 0 1px 2px rgba(28, 37, 33, 0.06), 0 4px 14px rgba(28, 37, 33, 0.06);
@@ -171,6 +173,7 @@ p.lede { color: var(--ink-soft); font-size: 14px; margin: 0 0 18px; }
 .badge.olumlu { background: var(--olumlu-bg); color: var(--olumlu); }
 .badge.olumsuz { background: var(--olumsuz-bg); color: var(--olumsuz); }
 .badge.kararsiz { background: var(--kararsiz-bg); color: var(--kararsiz); }
+.badge.oykullanamaz { background: var(--oykullanamaz-bg); color: var(--oykullanamaz); }
 
 .empty-state {
   text-align: center;
@@ -268,6 +271,10 @@ textarea { min-height: 80px; resize: vertical; }
 .choice-btn.sel-olumlu.selected { background: var(--olumlu-bg); border-color: var(--olumlu); color: var(--olumlu); }
 .choice-btn.sel-olumsuz.selected { background: var(--olumsuz-bg); border-color: var(--olumsuz); color: var(--olumsuz); }
 .choice-btn.sel-kararsiz.selected { background: var(--kararsiz-bg); border-color: var(--kararsiz); color: var(--kararsiz); }
+.choice-btn.sel-oykullanamaz.selected { background: var(--oykullanamaz-bg); border-color: var(--oykullanamaz); color: var(--oykullanamaz); }
+
+.choice-row-4 { flex-wrap: wrap; }
+.choice-row-4 .choice-btn { flex: 1 1 45%; }
 
 /* ---- Modal ---- */
 .modal-backdrop {
@@ -326,6 +333,7 @@ table.data-table th { color: var(--ink-soft); font-weight: 600; font-size: 11.5p
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 18px; }
 .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 10px; text-align: center; }
 .stat-box .n { font-family: var(--mono); font-size: 19px; font-weight: 600; }
+.stat-box .count-sub { font-size: 11px; color: var(--ink-soft); margin-top: 1px; }
 .stat-box .lbl { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
 
 .bar-row { margin-bottom: 12px; }
@@ -334,6 +342,7 @@ table.data-table th { color: var(--ink-soft); font-weight: 600; font-size: 11.5p
 .bar-track .seg-olumlu { background: var(--olumlu); }
 .bar-track .seg-olumsuz { background: var(--olumsuz); }
 .bar-track .seg-kararsiz { background: var(--kararsiz); }
+.bar-track .seg-oykullanamaz { background: var(--oykullanamaz); }
 
 .toast {
   position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%);
