@@ -153,10 +153,11 @@ async function renderAnketor() {
   if (anketorTab === 'sonuclarim') {
     main.innerHTML = `<h1>Sonuçlarım</h1>
       <p class="lede">Görüştüğünüz kişileri sonuca göre inceleyin; sonucu veya notunuzu güncelleyebilirsiniz.</p>
-      <div class="choice-row" id="sonuclarimFilterRow">
+      <div class="choice-row choice-row-4" id="sonuclarimFilterRow">
         <button class="choice-btn sel-olumlu" data-f="olumlu">Olumlu</button>
         <button class="choice-btn sel-olumsuz" data-f="olumsuz">Olumsuz</button>
         <button class="choice-btn sel-kararsiz" data-f="kararsiz">Kararsız</button>
+        <button class="choice-btn sel-oykullanamaz" data-f="oykullanamaz">Oy Kullanamayacak</button>
       </div>
       <div style="display:flex; gap:8px; margin:14px 0;">
         <input type="text" id="sonuclarimAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="flex:1;">
@@ -388,10 +389,11 @@ function renderSonuclarimList() {
         ${k.yoneticiNotu ? `<div class="field-help" style="margin-bottom:6px;">Yönetici notu</div><div style="margin-bottom:14px;">${esc(k.yoneticiNotu)}</div>` : ''}
 
         <label style="margin-top:0;">Sonucu Değiştir</label>
-        <div class="choice-row edit-sonuc-row">
+        <div class="choice-row edit-sonuc-row choice-row-4">
           <button class="choice-btn sel-olumlu${k.ilkSonuc === 'olumlu' ? ' selected' : ''}" data-val="olumlu">Olumlu</button>
           <button class="choice-btn sel-olumsuz${k.ilkSonuc === 'olumsuz' ? ' selected' : ''}" data-val="olumsuz">Olumsuz</button>
           <button class="choice-btn sel-kararsiz${k.ilkSonuc === 'kararsiz' ? ' selected' : ''}" data-val="kararsiz">Kararsız</button>
+          <button class="choice-btn sel-oykullanamaz${k.ilkSonuc === 'oykullanamaz' ? ' selected' : ''}" data-val="oykullanamaz">Oy Kullanamayacak</button>
         </div>
 
         <label for="sn-${k.id}">Notunuz</label>
@@ -973,10 +975,11 @@ async function renderAdminKisiler() {
   const body = document.getElementById('adminBody');
   body.innerHTML = `
     <p class="lede">Görüşülen kişileri sonuca göre filtreleyin. Bir satıra dokunarak görüşme notunu, sonucu değiştirme seçeneğini ve yönetici notunu görüntüleyin; telefon numarasına dokunarak arayın.</p>
-    <div class="choice-row" id="kisilerFilterRow">
+    <div class="choice-row choice-row-4" id="kisilerFilterRow">
       <button class="choice-btn sel-olumlu" data-f="olumlu">Olumlu</button>
       <button class="choice-btn sel-olumsuz" data-f="olumsuz">Olumsuz</button>
       <button class="choice-btn sel-kararsiz" data-f="kararsiz">Kararsız</button>
+      <button class="choice-btn sel-oykullanamaz" data-f="oykullanamaz">Oy Kullanamayacak</button>
     </div>
     <input type="text" id="kisilerAramaInput" placeholder="İsimle ara…" style="margin-top:12px;">
     <div id="kisilerListArea" style="margin-top:14px;"><p class="lede">Yükleniyor…</p></div>
@@ -1059,10 +1062,11 @@ function renderKisilerFilteredList() {
         <div style="margin-bottom:14px;">${k.IlkNotlar ? esc(k.IlkNotlar) : '<span class="field-help">Not girilmemiş.</span>'}</div>
 
         <label style="margin-top:0;">Görüşme Sonucunu Değiştir</label>
-        <div class="choice-row admin-sonuc-row">
+        <div class="choice-row admin-sonuc-row choice-row-4">
           <button class="choice-btn sel-olumlu${k.IlkSonuc === 'olumlu' ? ' selected' : ''}" data-val="olumlu">Olumlu</button>
           <button class="choice-btn sel-olumsuz${k.IlkSonuc === 'olumsuz' ? ' selected' : ''}" data-val="olumsuz">Olumsuz</button>
           <button class="choice-btn sel-kararsiz${k.IlkSonuc === 'kararsiz' ? ' selected' : ''}" data-val="kararsiz">Kararsız</button>
+          <button class="choice-btn sel-oykullanamaz${k.IlkSonuc === 'oykullanamaz' ? ' selected' : ''}" data-val="oykullanamaz">Oy Kullanamayacak</button>
         </div>
 
         <label for="yn-${k.ID}">Yönetici Notu</label>
@@ -1200,24 +1204,19 @@ async function renderAdminAnaliz() {
     body.innerHTML = emptyState('📊', 'Henüz tamamlanmış görüşme yok. Sonuçlar burada görünecek.');
     return;
   }
+  const oranHesapla = n => data.toplamGorusulen ? Math.round((n / data.toplamGorusulen) * 100) : 0;
   body.innerHTML = `
     <div class="stat-grid">
       <div class="stat-box"><div class="n">${data.toplamGorusulen}</div><div class="lbl">Toplam Görüşme</div></div>
-      <div class="stat-box"><div class="n">${pct(data, 'olumlu')}%</div><div class="lbl">Olumlu Oranı</div></div>
-      <div class="stat-box"><div class="n">${pct(data, 'olumsuz')}%</div><div class="lbl">Olumsuz Oranı</div></div>
+      <div class="stat-box"><div class="n">${oranHesapla(data.toplamOlumlu)}%</div><div class="count-sub">${data.toplamOlumlu} kişi</div><div class="lbl">Olumlu Oranı</div></div>
+      <div class="stat-box"><div class="n">${oranHesapla(data.toplamOlumsuz)}%</div><div class="count-sub">${data.toplamOlumsuz} kişi</div><div class="lbl">Olumsuz Oranı</div></div>
+      <div class="stat-box"><div class="n">${oranHesapla(data.toplamKararsiz)}%</div><div class="count-sub">${data.toplamKararsiz} kişi</div><div class="lbl">Kararsız Oranı</div></div>
+      <div class="stat-box"><div class="n">${oranHesapla(data.toplamOyKullanamaz)}%</div><div class="count-sub">${data.toplamOyKullanamaz} kişi</div><div class="lbl">Oy Kullanamayacak Oranı</div></div>
     </div>
     ${analysisTable('Anketöre Göre Sonuçlar', data.anketorBazli)}
     ${analysisSection('Bölgeye Göre (adres yakınlığı)', data.bolgeBazli)}
-    ${analysisSection('İlçeye Göre', data.ilceBazli)}
-    ${analysisSection('Yaş Grubuna Göre', data.yasBazli)}
     ${analysisSection('Cinsiyete Göre', data.cinsiyetBazli)}
   `;
-}
-
-function pct(data, key) {
-  let toplam = data.toplamGorusulen, sum = 0;
-  data.bolgeBazli.forEach(b => sum += (b[key] || 0));
-  return toplam ? Math.round((sum / toplam) * 100) : 0;
 }
 
 function analysisTable(title, buckets) {
@@ -1231,11 +1230,12 @@ function analysisTable(title, buckets) {
         <td><span class="badge olumlu">${b.olumlu || 0}</span></td>
         <td><span class="badge olumsuz">${b.olumsuz || 0}</span></td>
         <td><span class="badge kararsiz">${b.kararsiz || 0}</span></td>
+        <td><span class="badge oykullanamaz">${b.oykullanamaz || 0}</span></td>
         <td>${b.toplam}</td>
       </tr>`).join('');
   return `<div class="card"><h2>${title}</h2>
     <div class="table-scroll"><table class="data-table">
-      <thead><tr><th>Anketör</th><th>Olumlu</th><th>Olumsuz</th><th>Kararsız</th><th>Toplam</th></tr></thead>
+      <thead><tr><th>Anketör</th><th>Olumlu</th><th>Olumsuz</th><th>Kararsız</th><th>Oy Kullanamayacak</th><th>Toplam</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -1247,7 +1247,7 @@ function analysisSection(title, buckets) {
     .slice()
     .sort((a, b) => b.toplam - a.toplam)
     .map(b => {
-      const w = k => Math.round((b[k] / b.toplam) * 1000) / 10;
+      const w = k => Math.round(((b[k] || 0) / b.toplam) * 1000) / 10;
       return `
       <div class="bar-row">
         <div class="bar-label"><span>${esc(b.ad)}</span><span class="field-help">${b.toplam} görüşme</span></div>
@@ -1255,6 +1255,7 @@ function analysisSection(title, buckets) {
           <div class="seg-olumlu" style="width:${w('olumlu')}%"></div>
           <div class="seg-olumsuz" style="width:${w('olumsuz')}%"></div>
           <div class="seg-kararsiz" style="width:${w('kararsiz')}%"></div>
+          <div class="seg-oykullanamaz" style="width:${w('oykullanamaz')}%"></div>
         </div>
       </div>`;
     }).join('');
@@ -1285,8 +1286,6 @@ async function renderAdminSandik() {
       <div class="stat-box"><div class="n">${genelOran}%</div><div class="lbl">Katılım Oranı</div></div>
     </div>
     ${sandikTable('Bölgeye Göre', 'Bölge', data.bolgeBazli)}
-    ${sandikTable('İlçeye Göre', 'İlçe', data.ilceBazli)}
-    ${sandikTable('Yaş Grubuna Göre', 'Yaş Grubu', data.yasBazli)}
     ${sandikTable('Cinsiyete Göre', 'Cinsiyet', data.cinsiyetBazli)}
     ${sandikTable('Anketöre Göre', 'Anketör', data.anketorBazli)}
     ${gelmeyenlerTable(data.gelmeyenListe)}
