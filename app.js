@@ -16,7 +16,6 @@ let pendingKvkkBolge = null;
 let parsedExcelRows = [];
 let ilkListeCache = [];
 let anketorBolgeler = [];
-let kararsizListeCache = [];
 
 // ---------------------------------------------------------------
 // API
@@ -151,31 +150,49 @@ async function renderAnketor() {
     return;
   }
 
-  if (anketorTab === 'kararsiz') {
-    main.innerHTML = `<h1>Kararsızlar</h1>
-      <p class="lede">İlk görüşmede kararsız kalan, size atanmış kişiler.</p>
-      <input type="text" id="kararsizAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="margin-bottom:14px;">
+  if (anketorTab === 'sonuclarim') {
+    main.innerHTML = `<h1>Sonuçlarım</h1>
+      <p class="lede">Görüştüğünüz kişileri sonuca göre inceleyin; sonucu veya notunuzu güncelleyebilirsiniz.</p>
+      <div class="choice-row" id="sonuclarimFilterRow">
+        <button class="choice-btn sel-olumlu" data-f="olumlu">Olumlu</button>
+        <button class="choice-btn sel-olumsuz" data-f="olumsuz">Olumsuz</button>
+        <button class="choice-btn sel-kararsiz" data-f="kararsiz">Kararsız</button>
+      </div>
+      <div style="display:flex; gap:8px; margin:14px 0;">
+        <input type="text" id="sonuclarimAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="flex:1;">
+      </div>
+      <button class="btn btn-outline btn-block" id="sonuclarimPdfBtn" style="margin-bottom:14px;">📄 PDF İndir</button>
+      <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
+
+    document.querySelectorAll('#sonuclarimFilterRow .choice-btn').forEach(b => {
+      if (b.dataset.f === sonuclarimFilter) b.classList.add('selected');
+      b.addEventListener('click', () => {
+        sonuclarimFilter = b.dataset.f;
+        document.querySelectorAll('#sonuclarimFilterRow .choice-btn').forEach(x => x.classList.remove('selected'));
+        b.classList.add('selected');
+        loadSonuclarim();
+      });
+    });
+    document.getElementById('sonuclarimAramaInput').addEventListener('input', (e) => {
+      sonuclarimArama = e.target.value.trim();
+      renderSonuclarimList();
+    });
+    document.getElementById('sonuclarimPdfBtn').addEventListener('click', () => {
+      exportListToPDF('Sonuçlarım — ' + sonucEtiket(sonuclarimFilter), currentSonuclarimFiltered().map(k => ({
+        isim: k.adSoyad, telefon: formatPhoneTR(k.telefon).display, not: k.ilkNotlar || ''
+      })));
+    });
+    await loadSonuclarim();
+    return;
+  }
+
+  if (anketorTab === 'isler') {
+    main.innerHTML = `<h1>İş Listem</h1>
+      <p class="lede">Yöneticinizin size atadığı işler.</p>
       <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
     try {
-      const data = await api('getKararsizList', {});
-      if (data.kvkkRequired) {
-        openKvkkModal(data.kvkkRequired);
-        document.getElementById('listArea').innerHTML = emptyState('🔒', 'Bu listeyi görmeden önce KVKK onayı vermeniz gerekiyor.');
-        return;
-      }
-      kararsizListeCache = data.list;
-      renderKararsizList(kararsizListeCache);
-      const aramaInput = document.getElementById('kararsizAramaInput');
-      aramaInput.addEventListener('input', () => {
-        const q = aramaInput.value.trim();
-        if (q.length >= 3) {
-          const qNorm = normalizeTR(q);
-          const filtered = kararsizListeCache.filter(k => normalizeTR(k.adSoyad).includes(qNorm));
-          renderKararsizList(filtered, 'Aramanızla eşleşen kişi bulunamadı.');
-        } else {
-          renderKararsizList(kararsizListeCache);
-        }
-      });
+      const data = await api('getIsListem', {});
+      renderIsListem(data.list);
     } catch (err) {
       document.getElementById('listArea').innerHTML = emptyState('⚠️', err.message);
     }
@@ -189,14 +206,20 @@ async function renderAnketor() {
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`
     : `<h1>İlk Görüşme Listem</h1>
        <p class="lede">Size atanan, henüz görüşülmemiş kişiler.</p>
-       <div style="display:flex; gap:8px; margin-bottom:14px;">
+       <div style="display:flex; gap:8px; margin-bottom:10px;">
          <input type="text" id="ilkAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="flex:1;">
          <button class="btn btn-outline" id="yeniKisiBtn" style="white-space:nowrap;">+ Kişi Ekle</button>
        </div>
+       <button class="btn btn-outline btn-block" id="ilkPdfBtn" style="margin-bottom:14px;">📄 PDF İndir</button>
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`;
 
   if (!isSecond) {
     document.getElementById('yeniKisiBtn').addEventListener('click', openYeniKisiModal);
+    document.getElementById('ilkPdfBtn').addEventListener('click', () => {
+      exportListToPDF('Henüz Görüşülmemiş Kişiler', currentIlkFiltered().map(k => ({
+        isim: k.adSoyad, telefon: formatPhoneTR(k.telefon).display, not: ''
+      })));
+    });
   }
 
   try {
@@ -215,13 +238,8 @@ async function renderAnketor() {
       const aramaInput = document.getElementById('ilkAramaInput');
       aramaInput.addEventListener('input', () => {
         const q = aramaInput.value.trim();
-        if (q.length >= 3) {
-          const qNorm = normalizeTR(q);
-          const filtered = ilkListeCache.filter(k => normalizeTR(k.adSoyad).includes(qNorm));
-          renderKisiList(filtered, 'Aramanızla eşleşen kişi bulunamadı.');
-        } else {
-          renderKisiList(ilkListeCache);
-        }
+        const filtered = currentIlkFiltered();
+        renderKisiList(filtered, q.length >= 3 ? 'Aramanızla eşleşen kişi bulunamadı.' : undefined);
       });
     }
   } catch (err) {
@@ -231,6 +249,55 @@ async function renderAnketor() {
 
 function normalizeTR(s) {
   return String(s || '').toLocaleLowerCase('tr-TR');
+}
+
+function currentIlkFiltered() {
+  const input = document.getElementById('ilkAramaInput');
+  const q = input ? input.value.trim() : '';
+  if (q.length >= 3) {
+    const qn = normalizeTR(q);
+    return ilkListeCache.filter(k => normalizeTR(k.adSoyad).includes(qn));
+  }
+  return ilkListeCache;
+}
+
+// Tarayıcının "Yazdır / PDF olarak kaydet" özelliğini kullanarak, ek bir
+// kütüphaneye gerek olmadan Türkçe karakterleri sorunsuz destekleyen bir
+// PDF çıktısı üretir.
+function exportListToPDF(title, rows) {
+  const win = window.open('', '_blank');
+  if (!win) {
+    showToast('Yazdırma penceresi açılamadı. Pop-up engelleyiciyi kontrol edin.');
+    return;
+  }
+  const rowsHtml = rows.map(r => `
+    <tr>
+      <td>${esc(r.isim)}</td>
+      <td>${esc(r.telefon || '')}</td>
+      <td>${esc(r.not || '')}</td>
+    </tr>`).join('');
+  win.document.write(`
+    <!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
+    <title>${esc(title)}</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; color:#1c2521; }
+      h1 { font-size: 18px; margin-bottom: 4px; }
+      .tarih { font-size: 12px; color:#666; margin-bottom: 18px; }
+      table { width:100%; border-collapse: collapse; font-size: 12.5px; }
+      th, td { border: 1px solid #ccc; padding: 6px 8px; text-align:left; vertical-align: top; }
+      th { background: #f0f0f0; }
+      @media print { body { padding: 10px; } }
+    </style>
+    </head><body>
+    <h1>${esc(title)}</h1>
+    <div class="tarih">${new Date().toLocaleString('tr-TR')} — ${rows.length} kişi</div>
+    <table><thead><tr><th>İsim</th><th>Telefon</th><th>Görüşme Notu</th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
 }
 
 function emptyState(icon, text) {
@@ -262,31 +329,148 @@ function renderKisiList(list, emptyMsg) {
   });
 }
 
-function renderKararsizList(list, emptyMsg) {
+// ---- Sonuçlarım (anketörün kendi görüştüğü kişiler, düzenlenebilir) ----
+let sonuclarimFilter = 'kararsiz';
+let sonuclarimCache = [];
+let sonuclarimArama = '';
+
+async function loadSonuclarim() {
+  document.getElementById('listArea').innerHTML = '<p class="lede">Yükleniyor…</p>';
+  try {
+    const data = await api('getSonuclarim', { sonucFiltre: sonuclarimFilter });
+    if (data.kvkkRequired) {
+      openKvkkModal(data.kvkkRequired);
+      document.getElementById('listArea').innerHTML = emptyState('🔒', 'Bu listeyi görmeden önce KVKK onayı vermeniz gerekiyor.');
+      return;
+    }
+    sonuclarimCache = data.list;
+    renderSonuclarimList();
+  } catch (err) {
+    document.getElementById('listArea').innerHTML = emptyState('⚠️', err.message);
+  }
+}
+
+function currentSonuclarimFiltered() {
+  if (sonuclarimArama.length >= 3) {
+    const q = normalizeTR(sonuclarimArama);
+    return sonuclarimCache.filter(k => normalizeTR(k.adSoyad).includes(q));
+  }
+  return sonuclarimCache;
+}
+
+function sonucEtiket(f) {
+  return f === 'olumlu' ? 'Olumlu' : f === 'olumsuz' ? 'Olumsuz' : 'Kararsız';
+}
+
+function renderSonuclarimList() {
   const area = document.getElementById('listArea');
+  const list = currentSonuclarimFiltered();
+
   if (!list.length) {
-    area.innerHTML = emptyState('✅', emptyMsg || 'Kararsız kişi yok.');
+    area.innerHTML = emptyState('📭', sonuclarimArama.length >= 3
+      ? 'Aramanızla eşleşen kişi bulunamadı.'
+      : 'Bu filtrede kimse yok.');
     return;
   }
   area.innerHTML = list.map(k => {
     const phone = formatPhoneTR(k.telefon);
     return `
-    <div class="card kisi-card" style="cursor:default;">
-      <div class="row1">
-        <div class="ad">${esc(k.adSoyad)}</div>
-        <div class="bolge">${esc(k.bolge)}</div>
+    <div class="card kisi-row" data-id="${k.id}">
+      <div class="kisi-row-header">
+        <div class="row1">
+          <div class="ad">${esc(k.adSoyad)}</div>
+          ${phone.tel
+            ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
+            : `<span class="tel-link tel-missing">${esc(phone.display)}</span>`}
+        </div>
       </div>
-      <div class="adres">${esc(k.adres || '')}${k.ilce ? ', ' + esc(k.ilce) : ''}</div>
-      <div class="meta">
-        ${phone.tel
-          ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
-          : `<span class="tel-link tel-missing">${esc(phone.display)}</span>`}
-        ${k.yas ? `<span>${esc(String(k.yas))} yaş</span>` : ''}
-        ${k.cinsiyet ? `<span>${esc(k.cinsiyet)}</span>` : ''}
+      <div class="notes-area hidden">
+        ${k.yoneticiNotu ? `<div class="field-help" style="margin-bottom:6px;">Yönetici notu</div><div style="margin-bottom:14px;">${esc(k.yoneticiNotu)}</div>` : ''}
+
+        <label style="margin-top:0;">Sonucu Değiştir</label>
+        <div class="choice-row edit-sonuc-row">
+          <button class="choice-btn sel-olumlu${k.ilkSonuc === 'olumlu' ? ' selected' : ''}" data-val="olumlu">Olumlu</button>
+          <button class="choice-btn sel-olumsuz${k.ilkSonuc === 'olumsuz' ? ' selected' : ''}" data-val="olumsuz">Olumsuz</button>
+          <button class="choice-btn sel-kararsiz${k.ilkSonuc === 'kararsiz' ? ' selected' : ''}" data-val="kararsiz">Kararsız</button>
+        </div>
+
+        <label for="sn-${k.id}">Notunuz</label>
+        <textarea id="sn-${k.id}" placeholder="Görüşme notunuzu güncelleyin">${esc(k.ilkNotlar || '')}</textarea>
+
+        <button class="btn btn-primary edit-save-btn" style="margin-top:10px;">Kaydet</button>
       </div>
-      ${k.ilkNotlar ? `<div class="field-help" style="margin-top:8px;">${esc(k.ilkNotlar)}</div>` : ''}
     </div>`;
   }).join('');
+
+  area.querySelectorAll('.kisi-row-header').forEach(header => {
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('tel-link')) return;
+      header.closest('.kisi-row').querySelector('.notes-area').classList.toggle('hidden');
+    });
+  });
+
+  area.querySelectorAll('.kisi-row').forEach(card => {
+    const id = card.dataset.id;
+    const sonucRow = card.querySelector('.edit-sonuc-row');
+    let secilen = (sonuclarimCache.find(k => String(k.id) === id) || {}).ilkSonuc;
+
+    sonucRow.querySelectorAll('.choice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        sonucRow.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        secilen = btn.dataset.val;
+      });
+    });
+
+    card.querySelector('.edit-save-btn').addEventListener('click', async (evt) => {
+      const btn = evt.currentTarget;
+      const textarea = card.querySelector('textarea');
+      btn.disabled = true; btn.textContent = 'Kaydediliyor…';
+      try {
+        await api('anketorUpdateKisi', { kisiId: id, yeniSonuc: secilen, kendiNotu: textarea.value });
+        showToast('Kaydedildi.');
+        loadSonuclarim(); // sonuç değiştiyse bu filtreden düşebilir, listeyi tazele
+      } catch (err) {
+        showToast('Hata: ' + err.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Kaydet';
+      }
+    });
+  });
+}
+
+// ---- İş Listem (anketör) ----
+function renderIsListem(list) {
+  const area = document.getElementById('listArea');
+  if (!list.length) {
+    area.innerHTML = emptyState('📭', 'Henüz size atanmış bir iş yok.');
+    return;
+  }
+  area.innerHTML = list.map(i => `
+    <div class="card">
+      <div class="row1">
+        <div class="ad">${esc(i.baslik)}</div>
+        <span class="badge ${i.durum === 'Tamamlandi' ? 'olumlu' : 'kararsiz'}">${i.durum === 'Tamamlandi' ? 'Tamamlandı' : 'Bekliyor'}</span>
+      </div>
+      ${i.aciklama ? `<div class="adres">${esc(i.aciklama)}</div>` : ''}
+      <button class="btn btn-outline is-toggle-btn" data-id="${i.id}" data-durum="${i.durum}" style="margin-top:10px;">
+        ${i.durum === 'Tamamlandi' ? 'Tamamlanmadı olarak işaretle' : 'Tamamlandı olarak işaretle'}
+      </button>
+    </div>
+  `).join('');
+  area.querySelectorAll('.is-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const yeniDurum = btn.dataset.durum === 'Tamamlandi' ? 'Bekliyor' : 'Tamamlandi';
+      btn.disabled = true;
+      try {
+        await api('toggleIsListem', { isId: btn.dataset.id, durum: yeniDurum });
+        renderAnketor();
+      } catch (err) {
+        showToast('Hata: ' + err.message);
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 function renderSandikList(list, aktif) {
@@ -554,6 +738,7 @@ function renderAdmin() {
     <div class="tabstrip">
       <button data-t="yukle">Kişi Yükle</button>
       <button data-t="anketorler">Anketörler</button>
+      <button data-t="isler">İş Listesi</button>
       <button data-t="kisiler">Görüşülenler</button>
       <button data-t="kvkk">KVKK Kayıtları</button>
       <button data-t="analiz">Analiz</button>
@@ -574,6 +759,7 @@ function renderAdmin() {
 function renderAdminTab() {
   if (adminTab === 'yukle') return renderAdminYukle();
   if (adminTab === 'anketorler') return renderAdminAnketorler();
+  if (adminTab === 'isler') return renderAdminIsListesi();
   if (adminTab === 'kisiler') return renderAdminKisiler();
   if (adminTab === 'kvkk') return renderAdminKvkk();
   if (adminTab === 'analiz') return renderAdminAnaliz();
@@ -718,9 +904,70 @@ async function renderAdminAnketorler() {
   });
 }
 
+// ---- İş Listesi (yönetici) ----
+async function renderAdminIsListesi() {
+  const body = document.getElementById('adminBody');
+  body.innerHTML = `<p class="lede">Yükleniyor…</p>`;
+  let anketorData, isData;
+  try {
+    [anketorData, isData] = await Promise.all([
+      api('adminGetAnketorler', {}),
+      api('adminGetIsListeleri', {})
+    ]);
+  } catch (err) {
+    body.innerHTML = emptyState('⚠️', err.message);
+    return;
+  }
+  body.innerHTML = `
+    <div class="card">
+      <h2>Yeni İş Ata</h2>
+      <label for="ilAnketor">Anketör</label>
+      <select id="ilAnketor">
+        ${anketorData.anketorler.map(a => `<option value="${esc(a.email)}">${esc(a.adSoyad)} (${esc(a.email)})</option>`).join('')}
+      </select>
+      <label for="ilBaslik">Başlık</label>
+      <input type="text" id="ilBaslik" placeholder="Örn. Kadıköy sahil mahallesini tara">
+      <label for="ilAciklama">Açıklama</label>
+      <textarea id="ilAciklama" placeholder="Detaylar (opsiyonel)"></textarea>
+      <button class="btn btn-primary btn-block" id="ilSave" style="margin-top:14px;">Ata</button>
+    </div>
+
+    <h2 style="margin-top:22px;">Atanan İşler (${isData.isListeleri.length})</h2>
+    <div id="isListArea"></div>
+  `;
+
+  const isListArea = document.getElementById('isListArea');
+  if (!isData.isListeleri.length) {
+    isListArea.innerHTML = emptyState('📭', 'Henüz iş ataması yapılmadı.');
+  } else {
+    isListArea.innerHTML = isData.isListeleri.slice().reverse().map(i => `
+      <div class="card">
+        <div class="row1">
+          <div class="ad">${esc(i.baslik)}</div>
+          <span class="badge ${i.durum === 'Tamamlandi' ? 'olumlu' : 'kararsiz'}">${i.durum === 'Tamamlandi' ? 'Tamamlandı' : 'Bekliyor'}</span>
+        </div>
+        <div class="adres">${esc(i.anketorAd)}</div>
+        ${i.aciklama ? `<div class="field-help" style="margin-top:6px;">${esc(i.aciklama)}</div>` : ''}
+      </div>`).join('');
+  }
+
+  document.getElementById('ilSave').addEventListener('click', async () => {
+    const anketorEmail = document.getElementById('ilAnketor').value;
+    const baslik = document.getElementById('ilBaslik').value.trim();
+    const aciklama = document.getElementById('ilAciklama').value.trim();
+    if (!anketorEmail || !baslik) { showToast('Anketör ve başlık gerekli.'); return; }
+    try {
+      await api('adminAssignIsListesi', { anketorEmail, baslik, aciklama });
+      showToast('İş atandı.');
+      renderAdminTab();
+    } catch (err) { showToast('Hata: ' + err.message); }
+  });
+}
+
 // ---- Görüşülenler (sonuca göre filtre) ----
 let kisilerFilter = 'olumlu';
 let kisilerCache = null;
+let kisilerArama = '';
 
 async function renderAdminKisiler() {
   const body = document.getElementById('adminBody');
@@ -731,8 +978,13 @@ async function renderAdminKisiler() {
       <button class="choice-btn sel-olumsuz" data-f="olumsuz">Olumsuz</button>
       <button class="choice-btn sel-kararsiz" data-f="kararsiz">Kararsız</button>
     </div>
+    <input type="text" id="kisilerAramaInput" placeholder="İsimle ara…" style="margin-top:12px;">
     <div id="kisilerListArea" style="margin-top:14px;"><p class="lede">Yükleniyor…</p></div>
   `;
+  document.getElementById('kisilerAramaInput').addEventListener('input', (e) => {
+    kisilerArama = e.target.value.trim();
+    renderKisilerFilteredList();
+  });
   document.querySelectorAll('#kisilerFilterRow .choice-btn').forEach(b => {
     if (b.dataset.f === kisilerFilter) b.classList.add('selected');
     b.addEventListener('click', () => {
@@ -780,9 +1032,13 @@ function formatPhoneTR(raw) {
 
 function renderKisilerFilteredList() {
   const area = document.getElementById('kisilerListArea');
-  const list = (kisilerCache || []).filter(k => k.IlkSonuc === kisilerFilter);
+  let list = (kisilerCache || []).filter(k => k.IlkSonuc === kisilerFilter);
+  if (kisilerArama.length > 0) {
+    const q = normalizeTR(kisilerArama);
+    list = list.filter(k => normalizeTR(k.AdSoyad).includes(q));
+  }
   if (!list.length) {
-    area.innerHTML = emptyState('📭', 'Bu sonuçta görüşülmüş kimse yok.');
+    area.innerHTML = emptyState('📭', kisilerArama.length > 0 ? 'Aramanızla eşleşen kişi bulunamadı.' : 'Bu sonuçta görüşülmüş kimse yok.');
     return;
   }
   area.innerHTML = list.map(k => {
@@ -796,6 +1052,7 @@ function renderKisilerFilteredList() {
             ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
             : `<span class="tel-link tel-missing">${esc(phone.display)}</span>`}
         </div>
+        <div class="adres">${esc(k.Bolge || '—')} · ${esc(k.AnketorAd || '—')}</div>
       </div>
       <div class="notes-area hidden" data-id="${k.ID}">
         <div class="field-help" style="margin-bottom:6px;">Anketör notu</div>
@@ -812,6 +1069,10 @@ function renderKisilerFilteredList() {
         <textarea id="yn-${k.ID}" placeholder="Bu kişiyle ilgili yönetici notu ekleyin">${esc(k.YoneticiNotu || '')}</textarea>
 
         <button class="btn btn-primary admin-save-btn" style="margin-top:10px;">Kaydet</button>
+
+        <label for="rg-${k.ID}" style="margin-top:18px;">Anketöre Tekrar Görüşme İşi Ata</label>
+        <textarea id="rg-${k.ID}" placeholder="Anketöre iletilecek görev notu (opsiyonel)"></textarea>
+        <button class="btn btn-outline reassign-btn" style="margin-top:10px;">🔁 Tekrar Görüşme İşi Ata</button>
       </div>
     </div>
   `;
@@ -860,6 +1121,23 @@ function renderKisilerFilteredList() {
       } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = 'Kaydet';
+      }
+    });
+
+    card.querySelector('.reassign-btn').addEventListener('click', async (btnEvt) => {
+      const btn = btnEvt.currentTarget;
+      const gorevNotu = document.getElementById('rg-' + id).value;
+      btn.disabled = true;
+      btn.textContent = 'Atanıyor…';
+      try {
+        await api('adminAssignYenidenGorusmeIsi', { kisiId: id, gorevNotu });
+        showToast('Anketöre tekrar görüşme işi atandı.');
+        document.getElementById('rg-' + id).value = '';
+      } catch (err) {
+        showToast('Hata: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🔁 Tekrar Görüşme İşi Ata';
       }
     });
   });
