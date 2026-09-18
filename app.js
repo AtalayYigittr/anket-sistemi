@@ -557,6 +557,7 @@ function renderAdmin() {
       <button data-t="kisiler">Görüşülenler</button>
       <button data-t="kvkk">KVKK Kayıtları</button>
       <button data-t="analiz">Analiz</button>
+      <button data-t="sandik">Sandık Analizi</button>
     </div>
     <div id="adminBody"><p class="lede">Yükleniyor…</p></div>
   `;
@@ -576,6 +577,7 @@ function renderAdminTab() {
   if (adminTab === 'kisiler') return renderAdminKisiler();
   if (adminTab === 'kvkk') return renderAdminKvkk();
   if (adminTab === 'analiz') return renderAdminAnaliz();
+  if (adminTab === 'sandik') return renderAdminSandik();
 }
 
 // ---- Kişi yükle (Excel) ----
@@ -979,6 +981,84 @@ function analysisSection(title, buckets) {
       </div>`;
     }).join('');
   return `<div class="card"><h2>${title}</h2>${rows}</div>`;
+}
+
+// ---- Sandık Analizi (olumlu oy kullanıp sandığa gelenler/gelmeyenler) ----
+async function renderAdminSandik() {
+  const body = document.getElementById('adminBody');
+  body.innerHTML = `<p class="lede">Yükleniyor…</p>`;
+  let data;
+  try {
+    data = await api('adminGetSandikAnalizi', {});
+  } catch (err) {
+    body.innerHTML = emptyState('⚠️', err.message);
+    return;
+  }
+  if (!data.toplamOlumlu) {
+    body.innerHTML = emptyState('🗳️', 'Henüz olumlu işaretlenmiş kimse yok. Sonuçlar burada görünecek.');
+    return;
+  }
+  const genelOran = data.toplamOlumlu ? Math.round((data.toplamOyKullandi / data.toplamOlumlu) * 1000) / 10 : 0;
+  body.innerHTML = `
+    <p class="lede">İlk görüşmede olumlu bulunanlardan sandığa gidip oy kullandığı teyit edilenlerin analizi.</p>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="n">${data.toplamOlumlu}</div><div class="lbl">Toplam Olumlu</div></div>
+      <div class="stat-box"><div class="n">${data.toplamOyKullandi}</div><div class="lbl">Sandığa Geldi</div></div>
+      <div class="stat-box"><div class="n">${genelOran}%</div><div class="lbl">Katılım Oranı</div></div>
+    </div>
+    ${sandikTable('Bölgeye Göre', 'Bölge', data.bolgeBazli)}
+    ${sandikTable('İlçeye Göre', 'İlçe', data.ilceBazli)}
+    ${sandikTable('Yaş Grubuna Göre', 'Yaş Grubu', data.yasBazli)}
+    ${sandikTable('Cinsiyete Göre', 'Cinsiyet', data.cinsiyetBazli)}
+    ${sandikTable('Anketöre Göre', 'Anketör', data.anketorBazli)}
+    ${gelmeyenlerTable(data.gelmeyenListe)}
+  `;
+}
+
+function sandikTable(title, dimLabel, buckets) {
+  if (!buckets.length) return '';
+  const rows = buckets
+    .slice()
+    .sort((a, b) => b.toplamOlumlu - a.toplamOlumlu)
+    .map(b => `
+      <tr>
+        <td>${esc(b.ad)}</td>
+        <td>${b.toplamOlumlu}</td>
+        <td><span class="badge olumlu">${b.oyKullandi}</span></td>
+        <td><span class="badge olumsuz">${b.gelmedi}</span></td>
+        <td>${b.oran}%</td>
+      </tr>`).join('');
+  return `<div class="card"><h2>${title}</h2>
+    <div class="table-scroll"><table class="data-table">
+      <thead><tr><th>${dimLabel}</th><th>Olumlu</th><th>Sandığa Geldi</th><th>Gelmedi</th><th>Katılım</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
+}
+
+function gelmeyenlerTable(list) {
+  if (!list.length) {
+    return `<div class="card"><h2>Sandığa Gelmeyenler</h2>
+      <p class="lede" style="margin-bottom:0;">Olumlu oy kullanıp sandığa gelmeyen kimse yok 🎉</p></div>`;
+  }
+  const rows = list.map(k => {
+    const phone = formatPhoneTR(k.telefon);
+    return `
+      <tr>
+        <td>${esc(k.adSoyad)}</td>
+        <td>${phone.tel
+          ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
+          : esc(phone.display)}</td>
+        <td>${esc(k.bolge)}</td>
+        <td>${k.notlar ? esc(k.notlar) : '<span class="field-help">—</span>'}</td>
+      </tr>`;
+  }).join('');
+  return `<div class="card"><h2>Sandığa Gelmeyenler (${list.length})</h2>
+    <div class="table-scroll"><table class="data-table">
+      <thead><tr><th>İsim</th><th>Telefon</th><th>Bölge</th><th>Not</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  </div>`;
 }
 
 // ---------------------------------------------------------------
