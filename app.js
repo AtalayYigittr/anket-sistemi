@@ -203,7 +203,7 @@ async function renderAnketor() {
   const isSecond = anketorTab === 'ikinci';
   main.innerHTML = isSecond
     ? `<h1>Sandığa Gidildi Oy Kullandı</h1>
-       <p class="lede">İlk görüşmede olumlu bulunan (veya yönetici tarafından olumluya çevrilen) kişiler. 26 Eylül'den itibaren sandığa gidip gitmediklerini işaretleyebilirsiniz.</p>
+       <p class="lede">İlk görüşmede olumlu veya kararsız bulunan (ya da yönetici/anketör tarafından bu sonuçlardan birine çevrilen) kişiler. 26 Eylül'den itibaren sandığa gidip gitmediklerini işaretleyebilirsiniz.</p>
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`
     : `<h1>İlk Görüşme Listem</h1>
        <p class="lede">Size atanan, henüz görüşülmemiş kişiler.</p>
@@ -1273,15 +1273,15 @@ async function renderAdminSandik() {
     body.innerHTML = emptyState('⚠️', err.message);
     return;
   }
-  if (!data.toplamOlumlu) {
-    body.innerHTML = emptyState('🗳️', 'Henüz olumlu işaretlenmiş kimse yok. Sonuçlar burada görünecek.');
+  if (!data.toplamHedef) {
+    body.innerHTML = emptyState('🗳️', 'Henüz olumlu ya da kararsız işaretlenmiş kimse yok. Sonuçlar burada görünecek.');
     return;
   }
-  const genelOran = data.toplamOlumlu ? Math.round((data.toplamOyKullandi / data.toplamOlumlu) * 1000) / 10 : 0;
+  const genelOran = data.toplamHedef ? Math.round((data.toplamOyKullandi / data.toplamHedef) * 1000) / 10 : 0;
   body.innerHTML = `
-    <p class="lede">İlk görüşmede olumlu bulunanlardan sandığa gidip oy kullandığı teyit edilenlerin analizi.</p>
+    <p class="lede">İlk görüşmede olumlu veya kararsız bulunanlardan sandığa gidip oy kullandığı teyit edilenlerin analizi.</p>
     <div class="stat-grid">
-      <div class="stat-box"><div class="n">${data.toplamOlumlu}</div><div class="lbl">Toplam Olumlu</div></div>
+      <div class="stat-box"><div class="n">${data.toplamHedef}</div><div class="lbl">Toplam Olumlu + Kararsız</div></div>
       <div class="stat-box"><div class="n">${data.toplamOyKullandi}</div><div class="lbl">Sandığa Geldi</div></div>
       <div class="stat-box"><div class="n">${genelOran}%</div><div class="lbl">Katılım Oranı</div></div>
     </div>
@@ -1296,18 +1296,18 @@ function sandikTable(title, dimLabel, buckets) {
   if (!buckets.length) return '';
   const rows = buckets
     .slice()
-    .sort((a, b) => b.toplamOlumlu - a.toplamOlumlu)
+    .sort((a, b) => b.toplamHedef - a.toplamHedef)
     .map(b => `
       <tr>
         <td>${esc(b.ad)}</td>
-        <td>${b.toplamOlumlu}</td>
+        <td>${b.toplamHedef}</td>
         <td><span class="badge olumlu">${b.oyKullandi}</span></td>
         <td><span class="badge olumsuz">${b.gelmedi}</span></td>
         <td>${b.oran}%</td>
       </tr>`).join('');
   return `<div class="card"><h2>${title}</h2>
     <div class="table-scroll"><table class="data-table">
-      <thead><tr><th>${dimLabel}</th><th>Olumlu</th><th>Sandığa Geldi</th><th>Gelmedi</th><th>Katılım</th></tr></thead>
+      <thead><tr><th>${dimLabel}</th><th>Olumlu+Kararsız</th><th>Sandığa Geldi</th><th>Gelmedi</th><th>Katılım</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
@@ -1316,7 +1316,7 @@ function sandikTable(title, dimLabel, buckets) {
 function gelmeyenlerTable(list) {
   if (!list.length) {
     return `<div class="card"><h2>Sandığa Gelmeyenler</h2>
-      <p class="lede" style="margin-bottom:0;">Olumlu oy kullanıp sandığa gelmeyen kimse yok 🎉</p></div>`;
+      <p class="lede" style="margin-bottom:0;">Olumlu/kararsız olup sandığa gelmeyen kimse yok 🎉</p></div>`;
   }
   const rows = list.map(k => {
     const phone = formatPhoneTR(k.telefon);
