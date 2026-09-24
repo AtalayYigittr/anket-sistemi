@@ -301,6 +301,49 @@ function exportListToPDF(title, rows) {
   setTimeout(() => win.print(), 300);
 }
 
+// Görüşülenler (yönetici) sayfası için: İsim/Telefon/Bölge/Anketör/Not
+// sütunlarıyla PDF çıktısı. "kisiRows" burada ham Kisiler satırlarıdır.
+function exportKisilerToPDF(title, kisiRows) {
+  const win = window.open('', '_blank');
+  if (!win) {
+    showToast('Yazdırma penceresi açılamadı. Pop-up engelleyiciyi kontrol edin.');
+    return;
+  }
+  const rowsHtml = kisiRows.map(k => {
+    const phone = formatPhoneTR(k.Telefon);
+    return `
+    <tr>
+      <td>${esc(k.AdSoyad)}</td>
+      <td>${esc(phone.display)}</td>
+      <td>${esc(k.Bolge || '')}</td>
+      <td>${esc(k.AnketorAd || '')}</td>
+      <td>${esc(k.IlkNotlar || '')}</td>
+    </tr>`;
+  }).join('');
+  win.document.write(`
+    <!DOCTYPE html><html lang="tr"><head><meta charset="utf-8">
+    <title>${esc(title)}</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; padding: 24px; color:#1c2521; }
+      h1 { font-size: 18px; margin-bottom: 4px; }
+      .tarih { font-size: 12px; color:#666; margin-bottom: 18px; }
+      table { width:100%; border-collapse: collapse; font-size: 12px; }
+      th, td { border: 1px solid #ccc; padding: 6px 8px; text-align:left; vertical-align: top; }
+      th { background: #f0f0f0; }
+      @media print { body { padding: 10px; } }
+    </style>
+    </head><body>
+    <h1>${esc(title)}</h1>
+    <div class="tarih">${new Date().toLocaleString('tr-TR')} — ${kisiRows.length} kişi</div>
+    <table><thead><tr><th>İsim</th><th>Telefon</th><th>Bölge</th><th>Anketör</th><th>Görüşme Notu</th></tr></thead>
+    <tbody>${rowsHtml}</tbody></table>
+    </body></html>
+  `);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
 function emptyState(icon, text) {
   return `<div class="empty-state"><div class="big">${icon}</div>${esc(text)}</div>`;
 }
@@ -360,7 +403,10 @@ function currentSonuclarimFiltered() {
 }
 
 function sonucEtiket(f) {
-  return f === 'olumlu' ? 'Olumlu' : f === 'olumsuz' ? 'Olumsuz' : 'Kararsız';
+  if (f === 'olumlu') return 'Olumlu';
+  if (f === 'olumsuz') return 'Olumsuz';
+  if (f === 'oykullanamaz') return 'Oy Kullanamayacak';
+  return 'Kararsız';
 }
 
 function renderSonuclarimList() {
@@ -970,23 +1016,41 @@ async function renderAdminIsListesi() {
 let kisilerFilter = 'olumlu';
 let kisilerCache = null;
 let kisilerArama = '';
+let kisilerAnketorFiltre = '';
+let kisilerAnketorListesi = [];
 
 async function renderAdminKisiler() {
   const body = document.getElementById('adminBody');
   body.innerHTML = `
-    <p class="lede">Görüşülen kişileri sonuca göre filtreleyin. Bir satıra dokunarak görüşme notunu, sonucu değiştirme seçeneğini ve yönetici notunu görüntüleyin; telefon numarasına dokunarak arayın.</p>
+    <p class="lede">Görüşülen kişileri sonuca ve anketöre göre filtreleyin. Bir satıra dokunarak görüşme notunu, sonucu değiştirme seçeneğini ve yönetici notunu görüntüleyin; telefon numarasına dokunarak arayın.</p>
     <div class="choice-row choice-row-4" id="kisilerFilterRow">
       <button class="choice-btn sel-olumlu" data-f="olumlu">Olumlu</button>
       <button class="choice-btn sel-olumsuz" data-f="olumsuz">Olumsuz</button>
       <button class="choice-btn sel-kararsiz" data-f="kararsiz">Kararsız</button>
       <button class="choice-btn sel-oykullanamaz" data-f="oykullanamaz">Oy Kullanamayacak</button>
     </div>
+    <label for="kisilerAnketorSelect" style="margin-top:12px;">Anketöre Göre Filtrele</label>
+    <select id="kisilerAnketorSelect">
+      <option value="">Tüm anketörler</option>
+    </select>
     <input type="text" id="kisilerAramaInput" placeholder="İsimle ara…" style="margin-top:12px;">
+    <button class="btn btn-outline btn-block" id="kisilerPdfBtn" style="margin-top:12px;">📄 PDF İndir</button>
     <div id="kisilerListArea" style="margin-top:14px;"><p class="lede">Yükleniyor…</p></div>
   `;
   document.getElementById('kisilerAramaInput').addEventListener('input', (e) => {
     kisilerArama = e.target.value.trim();
     renderKisilerFilteredList();
+  });
+  document.getElementById('kisilerAnketorSelect').addEventListener('change', (e) => {
+    kisilerAnketorFiltre = e.target.value;
+    renderKisilerFilteredList();
+  });
+  document.getElementById('kisilerPdfBtn').addEventListener('click', () => {
+    const anketorAd = kisilerAnketorFiltre
+      ? (kisilerAnketorListesi.find(a => a.email === kisilerAnketorFiltre) || {}).adSoyad
+      : null;
+    const baslik = 'Görüşülenler — ' + sonucEtiket(kisilerFilter) + (anketorAd ? ' — ' + anketorAd : '');
+    exportKisilerToPDF(baslik, currentKisilerFiltered());
   });
   document.querySelectorAll('#kisilerFilterRow .choice-btn').forEach(b => {
     if (b.dataset.f === kisilerFilter) b.classList.add('selected');
@@ -1002,6 +1066,18 @@ async function renderAdminKisiler() {
       const data = await api('adminGetAllKisiler', {});
       kisilerCache = data.kisiler;
     }
+    if (!kisilerAnketorListesi.length) {
+      const anketorData = await api('adminGetAnketorler', {});
+      kisilerAnketorListesi = anketorData.anketorler;
+    }
+    const sel = document.getElementById('kisilerAnketorSelect');
+    kisilerAnketorListesi.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.email;
+      opt.textContent = a.adSoyad + ' (' + a.email + ')';
+      sel.appendChild(opt);
+    });
+    sel.value = kisilerAnketorFiltre;
     renderKisilerFilteredList();
   } catch (err) {
     document.getElementById('kisilerListArea').innerHTML = emptyState('⚠️', err.message);
@@ -1033,15 +1109,23 @@ function formatPhoneTR(raw) {
   };
 }
 
-function renderKisilerFilteredList() {
-  const area = document.getElementById('kisilerListArea');
+function currentKisilerFiltered() {
   let list = (kisilerCache || []).filter(k => k.IlkSonuc === kisilerFilter);
+  if (kisilerAnketorFiltre) {
+    list = list.filter(k => String(k.AnketorEmail || '').toLowerCase() === kisilerAnketorFiltre);
+  }
   if (kisilerArama.length > 0) {
     const q = normalizeTR(kisilerArama);
     list = list.filter(k => normalizeTR(k.AdSoyad).includes(q));
   }
+  return list;
+}
+
+function renderKisilerFilteredList() {
+  const area = document.getElementById('kisilerListArea');
+  const list = currentKisilerFiltered();
   if (!list.length) {
-    area.innerHTML = emptyState('📭', kisilerArama.length > 0 ? 'Aramanızla eşleşen kişi bulunamadı.' : 'Bu sonuçta görüşülmüş kimse yok.');
+    area.innerHTML = emptyState('📭', kisilerArama.length > 0 ? 'Aramanızla eşleşen kişi bulunamadı.' : 'Bu filtrede görüşülmüş kimse yok.');
     return;
   }
   area.innerHTML = list.map(k => {
