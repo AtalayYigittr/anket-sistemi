@@ -1388,8 +1388,77 @@ async function renderAdminSandik() {
     ${sandikTable('Bölgeye Göre', 'Bölge', data.bolgeBazli)}
     ${sandikTable('Cinsiyete Göre', 'Cinsiyet', data.cinsiyetBazli)}
     ${sandikTable('Anketöre Göre', 'Anketör', data.anketorBazli)}
-    ${gelmeyenlerTable(data.gelmeyenListe)}
+    <div class="card">
+      <h2>Sandığa Geldi mi? (Düzeltilebilir)</h2>
+      <p class="lede" style="margin-bottom:10px;">Olumlu veya kararsız işaretlenmiş herkesin sandık durumunu buradan Geldi / Gelmedi / İşaretlenmemiş olarak düzeltebilirsiniz.</p>
+      <input type="text" id="sandikHedefAramaInput" placeholder="İsimle ara…">
+      <div id="sandikHedefListArea" style="margin-top:14px;"></div>
+    </div>
   `;
+  sandikHedefCache = data.hedefKitleListesi;
+  sandikHedefArama = '';
+  document.getElementById('sandikHedefAramaInput').addEventListener('input', (e) => {
+    sandikHedefArama = e.target.value.trim();
+    renderSandikHedefListesi();
+  });
+  renderSandikHedefListesi();
+}
+
+// ---- Sandığa geldi mi? (düzeltilebilir, aranabilir liste) ----
+let sandikHedefCache = [];
+let sandikHedefArama = '';
+
+function renderSandikHedefListesi() {
+  const area = document.getElementById('sandikHedefListArea');
+  let list = sandikHedefCache;
+  if (sandikHedefArama.length > 0) {
+    const q = normalizeTR(sandikHedefArama);
+    list = list.filter(k => normalizeTR(k.adSoyad).includes(q));
+  }
+  if (!list.length) {
+    area.innerHTML = emptyState('📭', sandikHedefArama.length > 0 ? 'Aramanızla eşleşen kişi bulunamadı.' : 'Kimse yok.');
+    return;
+  }
+  area.innerHTML = list.map(k => {
+    const phone = formatPhoneTR(k.telefon);
+    return `
+    <div class="card" data-id="${k.id}">
+      <div class="row1">
+        <div class="ad">${esc(k.adSoyad)}</div>
+        ${phone.tel
+          ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
+          : `<span class="tel-link tel-missing">${esc(phone.display)}</span>`}
+      </div>
+      <div class="adres">${esc(k.bolge || '')}</div>
+      <div class="choice-row" style="margin-top:10px;">
+        <button class="choice-btn sel-olumlu${k.ikinciSonuc === 'evet' ? ' selected' : ''}" data-val="evet">Geldi</button>
+        <button class="choice-btn sel-olumsuz${k.ikinciSonuc === 'hayir' ? ' selected' : ''}" data-val="hayir">Gelmedi</button>
+        <button class="choice-btn sel-kararsiz${!k.ikinciSonuc ? ' selected' : ''}" data-val="">İşaretlenmemiş</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  area.querySelectorAll('.card').forEach(card => {
+    const id = card.dataset.id;
+    card.querySelectorAll('.choice-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const durum = btn.dataset.val;
+        card.querySelectorAll('.choice-btn').forEach(b => b.disabled = true);
+        try {
+          await api('adminUpdateSandikDurumu', { kisiId: id, durum });
+          const item = sandikHedefCache.find(k => String(k.id) === id);
+          if (item) item.ikinciSonuc = durum;
+          card.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+          btn.classList.add('selected');
+          showToast('Kaydedildi.');
+        } catch (err) {
+          showToast('Hata: ' + err.message);
+        } finally {
+          card.querySelectorAll('.choice-btn').forEach(b => b.disabled = false);
+        }
+      });
+    });
+  });
 }
 
 function sandikTable(title, dimLabel, buckets) {
@@ -1408,31 +1477,6 @@ function sandikTable(title, dimLabel, buckets) {
   return `<div class="card"><h2>${title}</h2>
     <div class="table-scroll"><table class="data-table">
       <thead><tr><th>${dimLabel}</th><th>Olumlu+Kararsız</th><th>Sandığa Geldi</th><th>Gelmedi</th><th>Katılım</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
-  </div>`;
-}
-
-function gelmeyenlerTable(list) {
-  if (!list.length) {
-    return `<div class="card"><h2>Sandığa Gelmeyenler</h2>
-      <p class="lede" style="margin-bottom:0;">Olumlu/kararsız olup sandığa gelmeyen kimse yok 🎉</p></div>`;
-  }
-  const rows = list.map(k => {
-    const phone = formatPhoneTR(k.telefon);
-    return `
-      <tr>
-        <td>${esc(k.adSoyad)}</td>
-        <td>${phone.tel
-          ? `<a class="tel-link" href="tel:${esc(phone.tel)}">${esc(phone.display)}</a>`
-          : esc(phone.display)}</td>
-        <td>${esc(k.bolge)}</td>
-        <td>${k.notlar ? esc(k.notlar) : '<span class="field-help">—</span>'}</td>
-      </tr>`;
-  }).join('');
-  return `<div class="card"><h2>Sandığa Gelmeyenler (${list.length})</h2>
-    <div class="table-scroll"><table class="data-table">
-      <thead><tr><th>İsim</th><th>Telefon</th><th>Bölge</th><th>Not</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div>
   </div>`;
