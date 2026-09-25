@@ -16,6 +16,8 @@ let pendingKvkkBolge = null;
 let parsedExcelRows = [];
 let ilkListeCache = [];
 let anketorBolgeler = [];
+let sandikListeCache = [];
+let sandikAktifCache = false;
 
 // ---------------------------------------------------------------
 // API
@@ -204,6 +206,7 @@ async function renderAnketor() {
   main.innerHTML = isSecond
     ? `<h1>Sandığa Gidildi Oy Kullandı</h1>
        <p class="lede">İlk görüşmede olumlu veya kararsız bulunan (ya da yönetici/anketör tarafından bu sonuçlardan birine çevrilen) kişiler. 26 Eylül'den itibaren sandığa gidip gitmediklerini işaretleyebilirsiniz.</p>
+       <input type="text" id="sandikAramaInput" placeholder="İsimle ara (en az 3 harf)…" style="margin-bottom:14px;">
        <div id="listArea"><p class="lede">Yükleniyor…</p></div>`
     : `<h1>İlk Görüşme Listem</h1>
        <p class="lede">Size atanan, henüz görüşülmemiş kişiler.</p>
@@ -231,7 +234,20 @@ async function renderAnketor() {
       return;
     }
     if (isSecond) {
-      renderSandikList(data.list, data.sandikAktif);
+      sandikListeCache = data.list;
+      sandikAktifCache = data.sandikAktif;
+      renderSandikList(sandikListeCache, sandikAktifCache);
+      const sandikArama = document.getElementById('sandikAramaInput');
+      sandikArama.addEventListener('input', () => {
+        const q = sandikArama.value.trim();
+        if (q.length >= 3) {
+          const qn = normalizeTR(q);
+          const filtered = sandikListeCache.filter(k => normalizeTR(k.adSoyad).includes(qn));
+          renderSandikList(filtered, sandikAktifCache, 'Aramanızla eşleşen kişi bulunamadı.');
+        } else {
+          renderSandikList(sandikListeCache, sandikAktifCache);
+        }
+      });
     } else {
       ilkListeCache = data.list;
       anketorBolgeler = data.bolgeler || [];
@@ -521,10 +537,10 @@ function renderIsListem(list) {
   });
 }
 
-function renderSandikList(list, aktif) {
+function renderSandikList(list, aktif, emptyMsg) {
   const area = document.getElementById('listArea');
   if (!list.length) {
-    area.innerHTML = emptyState('✅', 'Şu anda listede kimse yok.');
+    area.innerHTML = emptyState('✅', emptyMsg || 'Şu anda listede kimse yok.');
     return;
   }
   const banner = !aktif
