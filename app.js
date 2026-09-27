@@ -37,6 +37,9 @@ async function api(action, payload) {
     if (data.error === 'AUTH_FAILED') {
       doLogout();
     }
+    if (data.error === 'DONEM_KAPANDI') {
+      renderDonemKapandiScreen();
+    }
     throw new Error(data.message || data.error || 'Bilinmeyen hata');
   }
   return data;
@@ -119,6 +122,11 @@ function enterApp() {
   document.getElementById('whoName').textContent = session.adSoyad;
   document.getElementById('whoRole').textContent = session.role === 'admin' ? 'Yönetici' : 'Anketör';
 
+  if (session.role === 'anketor' && (session.kapali || anketorKapaliMiLocal())) {
+    renderDonemKapandiScreen();
+    return;
+  }
+
   if (session.role === 'anketor') {
     document.getElementById('bottomNav').classList.remove('hidden');
     document.querySelectorAll('.nav-btn').forEach(b => {
@@ -134,6 +142,26 @@ function enterApp() {
     document.getElementById('bottomNav').classList.add('hidden');
     renderAdmin();
   }
+}
+
+// 27 Eylül 2026'dan (dahil) itibaren anketörlerin erişimi kapanır; sadece
+// bir teşekkür ekranı gösterilir. Yönetici sunucudan (session.kapali) gelen
+// bilgiyi kullanır; bu, tarayıcı tarihiyle küçük bir tutarlılık kontrolüdür.
+const ANKETOR_KAPANIS_TARIHI = '2026-09-27';
+function anketorKapaliMiLocal() {
+  const b = new Date();
+  const t = b.getFullYear() + '-' + String(b.getMonth() + 1).padStart(2, '0') + '-' + String(b.getDate()).padStart(2, '0');
+  return t >= ANKETOR_KAPANIS_TARIHI;
+}
+
+function renderDonemKapandiScreen() {
+  document.getElementById('bottomNav').classList.add('hidden');
+  document.getElementById('mainContent').innerHTML = `
+    <div class="empty-state" style="padding-top:90px;">
+      <div class="big">🙏</div>
+      <h2 style="margin-top:10px;">Seçim dönemi dışındadır</h2>
+      <p class="lede" style="margin-top:8px;">Desteğiniz için teşekkür ederiz.</p>
+    </div>`;
 }
 
 // =================================================================
